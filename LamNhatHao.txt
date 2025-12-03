@@ -1,0 +1,194 @@
+Đối với quản trị viên (Admin):
+- Quản lý tài khoản người dùng (đăng ký, phân quyền, khóa/mở truy cập).
+- Quản lý nội dung văn hóa, bài học, hình ảnh, video và dữ liệu di sản Khmer.
+- Cập nhật nội dung học tập và tài liệu học thuật mở (Open Khmer Culture Library).
+- Theo dõi và thống kê mức độ học tập, tương tác, và tác động xã hội thông qua bảng phân tích (Analytics Dashboard).
+Đối với người dùng:
+Tính năng cốt lõi.
+-Hồ sơ người dùng (User Profile): lưu tiến trình học, thành tích và hoạt động.
+-Giới thiệu tổng quan văn hóa Khmer Nam Bộ: tìm hiểu lịch sử, phong tục, nghệ thuật, tín ngưỡng.
+-Các bài học về Phật giáo Nam tông Khmer: bài học, video, và hình ảnh minh họa chùa chiền, nghi lễ.
+-Khám phá lễ hội truyền thống Khmer: xem mô tả, lịch tổ chức, hình ảnh, video và ý nghĩa.
+-Bản đồ di sản Khmer (Interactive Map): tra cứu vị trí chùa, di tích, di sản trên bản đồ.
+-Học tiếng Khmer cơ bản: học từ vựng, phát âm, ngữ pháp qua bài học tương tác.
+-Truyện và nhân vật văn hóa Khmer: đọc, nghe, hoặc xem các câu chuyện dân gian, nhân vật lịch sử.
+-Tương tác học tập (Gamification): nhận điểm, huy hiệu, bảng xếp hạng khi hoàn thành bài học.
+-Tra cứu nhanh (Knowledge Hub): tìm kiếm nhanh thuật ngữ, lễ hội, chùa, nhân vật văn hóa.
+-Giao diện song ngữ Việt – Khmer: hỗ trợ chuyển đổi ngôn ngữ linh hoạt.
+Tính năng mở rộng
+-AI & Chatbot văn hóa Khmer: trợ lý ảo trả lời câu hỏi, gợi ý nội dung học và địa điểm văn hóa.
+-Kết nối cộng đồng học văn hóa: diễn đàn, nhóm học tập, bình luận, chia sẻ kinh nghiệm.
+-Học thông qua dự án (Project-based Learning): khuyến khích người học thực hiện dự án văn hóa nhỏ.
+-Tích hợp hướng dẫn du lịch văn hóa: đề xuất tuyến tham quan chùa và lễ hội gần vị trí người dùng.
+-Tư liệu học thuật mở (Open Khmer Culture Library): kho dữ liệu mở phục vụ nghiên cứu và giảng dạy.
+-Bảng xếp hạng học tập & Cộng đồng đóng góp: ghi nhận thành tích và chia sẻ nội dung hữu ích.
+
+❌ Chưa có - Cần phát triển (Phần User Frontend)
+Tính năng cốt lõi:
+
+❌ Hồ sơ người dùng (User Profile): Hiển thị tiến trình học, thành tích
+❌ Trang giới thiệu văn hóa Khmer: Lịch sử, phong tục, nghệ thuật
+❌ Trang bài học Phật giáo Nam tông: Với video, hình ảnh chùa
+❌ Trang khám phá lễ hội: Lịch tổ chức, video, ý nghĩa
+❌ Bản đồ di sản Khmer (Interactive Map): Google Maps API
+❌ Trang học tiếng Khmer: Bài học tương tác, phát âm
+❌ Trang truyện văn hóa: Đọc, nghe, xem truyện
+❌ Hệ thống gamification UI: Bảng xếp hạng, huy hiệu
+❌ Knowledge Hub: Tìm kiếm nhanh
+❌ Giao diện song ngữ Việt-Khmer: i18n
+Tính năng mở rộng:
+
+❌ AI Chatbot văn hóa Khmer: Trợ lý ảo
+❌ Diễn đàn cộng đồng: Forum, bình luận, chia sẻ
+❌ Project-based Learning: Dự án văn hóa
+❌ Hướng dẫn du lịch văn hóa: Tuyến tham quan
+❌ Open Khmer Culture Library: Kho tài liệu mở
+❌ Bảng xếp hạng & Đóng góp: Leaderboard công khai
+🎯 ROADMAP PHÁT TRIỂN ĐỀ XUẤT
+Phase 1: Frontend User - Tính năng cốt lõi (2-3 tháng)
+Trang chủ (Homepage)
+
+Hero section giới thiệu
+Thống kê tổng quan
+Nội dung nổi bật
+Call-to-action
+Hệ thống đăng nhập/đăng ký User
+
+Form đăng ký/đăng nhập
+Xác thực email
+Quên mật khẩu
+OAuth (Google, Facebook)
+User Profile & Dashboard
+
+Thông tin cá nhân
+Tiến trình học tập
+Huy hiệu đạt được
+Lịch sử hoạt động
+Trang Văn hóa Khmer
+
+Danh sách bài viết
+Chi tiết bài viết
+Tìm kiếm, lọc theo danh mục
+Bình luận, like, share
+Trang Chùa Khmer
+
+Danh sách chùa
+Chi tiết chùa (thông tin, hình ảnh, lịch sử)
+Tìm kiếm theo tỉnh/loại
+Đánh giá, bình luận
+Trang Lễ hội
+
+Danh sách lễ hội
+Chi tiết lễ hội (mô tả, lịch, video)
+Lịch lễ hội sắp diễn ra
+Đăng ký tham gia
+Trang Học tiếng Khmer
+
+Danh sách bài học theo cấp độ
+Chi tiết bài học (nội dung, từ vựng, âm thanh)
+Bài tập tương tác
+Theo dõi tiến độ
+Trang Truyện dân gian
+
+Danh sách truyện theo thể loại
+Đọc truyện (text)
+Nghe truyện (audio)
+Bookmark, like
+Gamification UI
+
+Bảng xếp hạng (Leaderboard)
+Hệ thống điểm & cấp độ
+Huy hiệu & thành tích
+Progress tracking
+Tìm kiếm nhanh (Knowledge Hub)
+
+Search bar toàn cục
+Kết quả tìm kiếm đa dạng
+Filter nâng cao
+Gợi ý tìm kiếm
+Phase 2: Tính năng nâng cao (2-3 tháng)
+Bản đồ di sản Khmer
+
+Google Maps integration
+Marker cho chùa, di tích
+Popup thông tin
+Chỉ đường
+Giao diện song ngữ
+
+i18n implementation
+Chuyển đổi Việt-Khmer
+Lưu preference
+Hệ thống bình luận & tương tác
+
+Comment system
+Reply, like, report
+Notification
+Responsive & PWA
+
+Mobile-first design
+Progressive Web App
+Offline support
+Phase 3: Tính năng mở rộng (3-4 tháng)
+AI Chatbot
+
+Integration với ChatGPT/Gemini API
+Context về văn hóa Khmer
+Gợi ý nội dung
+Diễn đàn cộng đồng
+
+Forum system
+Topics, threads, posts
+Moderation
+Project-based Learning
+
+Tạo dự án văn hóa
+Submit & review
+Showcase
+Du lịch văn hóa
+
+Tuyến tham quan
+Gợi ý dựa trên vị trí
+Booking integration
+Open Library
+
+Kho tài liệu mở
+Upload, download
+Citation system
+💡 CÔNG NGHỆ ĐỀ XUẤT CHO FRONTEND USER
+Option 1: PHP Thuần (Giống Admin)
+Ưu điểm:
+
+Nhất quán với Backend hiện tại
+Dễ deploy chung server
+Không cần học công nghệ mới
+Nhược điểm:
+
+Ít tương tác, trải nghiệm kém hơn
+Khó làm real-time features
+SEO tốt nhưng UX hạn chế
+Option 2: Modern Stack (Khuyến nghị)
+Frontend:
+
+Framework: Next.js 14 (React) hoặc Nuxt 3 (Vue)
+Styling: Tailwind CSS
+State: Zustand/Pinia
+API: REST API từ Backend PHP
+Backend:
+
+Giữ nguyên PHP + MySQL
+Tạo REST API endpoints
+JWT authentication
+Ưu điểm:
+
+UX/UI hiện đại, mượt mà
+SEO tốt (SSR/SSG)
+Dễ làm real-time, interactive
+Scalable
+Bạn muốn tôi:
+
+Bắt đầu xây dựng Frontend User với công nghệ nào?
+Tạo REST API cho Backend PHP hiện tại?
+Lập kế hoạch chi tiết cho từng phase?
+Thiết kế database cho các tính năng mới?
+Hãy cho tôi biết bạn muốn bắt đầu từ đâu! 🚀
+		
