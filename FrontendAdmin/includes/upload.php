@@ -15,8 +15,8 @@ class ImageUploader {
     private $errors = [];
     
     public function __construct($subDir = 'general') {
-        // Tạo đường dẫn upload
-        $baseDir = __DIR__ . '/../uploads/';
+        // Tạo đường dẫn upload - lưu vào thư mục root/uploads
+        $baseDir = __DIR__ . '/../../uploads/';
         $this->uploadDir = $baseDir . $subDir . '/';
         
         // Tạo thư mục nếu chưa tồn tại
@@ -108,8 +108,8 @@ class ImageUploader {
             // Tối ưu hóa ảnh
             $this->optimizeImage($filePath, $mimeType);
             
-            // Trả về đường dẫn tương đối (chuẩn hóa dấu / cho cross-platform)
-            $basePath = str_replace('\\', '/', realpath(__DIR__ . '/..'));
+            // Trả về đường dẫn tương đối từ root project (chuẩn hóa dấu / cho cross-platform)
+            $basePath = str_replace('\\', '/', realpath(__DIR__ . '/../..'));
             $fullPath = str_replace('\\', '/', realpath($filePath));
             $relativePath = str_replace($basePath . '/', '', $fullPath);
             

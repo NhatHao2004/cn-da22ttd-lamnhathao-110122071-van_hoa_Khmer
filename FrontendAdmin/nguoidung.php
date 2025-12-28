@@ -31,23 +31,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: nguoidung.php');
                 exit;
                 
-            case 'send_notification':
-                // Gửi tin nhắn cho người dùng qua bảng tin_nhan
-                $tieu_de = $_POST['tieu_de'];
-                $noi_dung = $_POST['noi_dung'];
-                $ma_nguoi_dung = $_POST['ma_nguoi_dung'];
+            case 'delete':
+                $ma_nguoi_dung = intval($_POST['ma_nguoi_dung']);
                 
-                // Tạo nội dung tin nhắn đầy đủ
-                $message_content = "📢 " . $tieu_de . "\n\n" . $noi_dung;
+                // Lấy thông tin người dùng để xóa ảnh đại diện
+                $user = $nguoiDungModel->getById($ma_nguoi_dung);
                 
-                $sql = "INSERT INTO tin_nhan (ma_nguoi_gui, loai_nguoi_gui, ma_nguoi_nhan, loai_nguoi_nhan, noi_dung, trang_thai) 
-                        VALUES (?, 'admin', ?, 'user', ?, 'chua_doc')";
+                // Xóa ảnh đại diện nếu có
+                if ($user && !empty($user['anh_dai_dien'])) {
+                    $imagePath = __DIR__ . '/../FrontendUser/' . $user['anh_dai_dien'];
+                    if (file_exists($imagePath)) {
+                        @unlink($imagePath);
+                    }
+                }
                 
-                if($db->execute($sql, [$_SESSION['admin_id'], $ma_nguoi_dung, $message_content])) {
-                    $_SESSION['flash_message'] = 'Đã gửi thông báo cho người dùng!';
+                // Xóa người dùng
+                if($nguoiDungModel->delete($ma_nguoi_dung)) {
+                    $_SESSION['flash_message'] = 'Xóa người dùng thành công!';
                     $_SESSION['flash_type'] = 'success';
                 } else {
-                    $_SESSION['flash_message'] = 'Có lỗi khi gửi thông báo!';
+                    $_SESSION['flash_message'] = 'Có lỗi khi xóa người dùng!';
                     $_SESSION['flash_type'] = 'error';
                 }
                 header('Location: nguoidung.php');
@@ -60,16 +63,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // Xử lý upload ảnh mới
                 if (isset($_FILES['anh_dai_dien']) && $_FILES['anh_dai_dien']['error'] !== UPLOAD_ERR_NO_FILE) {
-                    $uploader = new ImageUploader('avatar');
-                    $newImagePath = $uploader->upload($_FILES['anh_dai_dien']);
-                    if ($newImagePath) {
-                        // Xóa ảnh cũ nếu có
-                        if ($anh_dai_dien && file_exists(__DIR__ . '/' . $anh_dai_dien)) {
-                            @unlink(__DIR__ . '/' . $anh_dai_dien);
+                    // Upload vào thư mục FrontendUser/uploads/avatar để nhất quán
+                    $uploadDir = __DIR__ . '/../FrontendUser/uploads/avatar/';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0755, true);
+                    }
+                    
+                    $file = $_FILES['anh_dai_dien'];
+                    $allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+                    $fileType = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                    
+                    if (in_array('image/' . $fileType, $allowedTypes) || in_array($fileType, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                        $fileName = date('Ymd_His') . '_' . uniqid() . '.' . $fileType;
+                        $targetPath = $uploadDir . $fileName;
+                        
+                        if (move_uploaded_file($file['tmp_name'], $targetPath)) {
+                            // Xóa ảnh cũ nếu có
+                            if ($anh_dai_dien && file_exists(__DIR__ . '/../FrontendUser/' . $anh_dai_dien)) {
+                                @unlink(__DIR__ . '/../FrontendUser/' . $anh_dai_dien);
+                            }
+                            // Lưu đường dẫn tương đối (không có FrontendUser prefix)
+                            $anh_dai_dien = 'uploads/avatar/' . $fileName;
+                        } else {
+                            throw new Exception('Không thể lưu file ảnh');
                         }
-                        $anh_dai_dien = $newImagePath;
                     } else {
-                        throw new Exception('Lỗi upload ảnh: ' . $uploader->getErrorString());
+                        throw new Exception('Loại file không được phép. Chỉ chấp nhận: JPG, PNG, GIF, WEBP');
                     }
                 }
                 
@@ -113,8 +132,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'delete':
                 // Lấy thông tin người dùng để xóa ảnh
                 $user = $nguoiDungModel->getById($_POST['ma_nguoi_dung']);
-                if ($user && $user['anh_dai_dien'] && file_exists(__DIR__ . '/' . $user['anh_dai_dien'])) {
-                    @unlink(__DIR__ . '/' . $user['anh_dai_dien']);
+                if ($user && $user['anh_dai_dien'] && file_exists(__DIR__ . '/../FrontendUser/' . $user['anh_dai_dien'])) {
+                    @unlink(__DIR__ . '/../FrontendUser/' . $user['anh_dai_dien']);
                 }
                 
                 if($nguoiDungModel->delete($_POST['ma_nguoi_dung'])) {
@@ -146,15 +165,18 @@ if(!is_array($users)) {
     $users = [];
 }
 
-// Format ngày tạo
-foreach($users as &$user) {
+// Format ngày tạo - KHÔNG dùng reference để tránh lỗi trùng lặp
+$processedUsers = [];
+foreach($users as $user) {
     if(isset($user['ngay_tao'])) {
         $user['ngay_tao_fmt'] = date('d/m/Y H:i', strtotime($user['ngay_tao']));
     }
     if(isset($user['lan_dang_nhap_cuoi']) && $user['lan_dang_nhap_cuoi']) {
         $user['lan_dang_nhap_cuoi_fmt'] = date('d/m/Y H:i', strtotime($user['lan_dang_nhap_cuoi']));
     }
+    $processedUsers[] = $user;
 }
+$users = $processedUsers;
 
 // Thống kê
 $total_users = $nguoiDungModel->count();
@@ -1096,11 +1118,14 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
 }
 .user-stats-row {
     display:grid;
-    grid-template-columns:repeat(3, 1fr);
+    grid-template-columns:repeat(2, 1fr);
     gap:16px;
     margin-top:24px;
     padding-top:24px;
     border-top:2px solid var(--gray-light);
+    max-width:500px;
+    margin-left:auto;
+    margin-right:auto;
 }
 .user-stat-box {
     text-align:center;
@@ -1352,21 +1377,9 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                     <i class="fas fa-users"></i>
                     <span>Người dùng</span>
                 </div>
-                <div class="menu-item" onclick="location.href='thongbao.php'">
-                    <i class="fas fa-bell"></i>
-                    <span>Thông báo</span>
-                </div>
-                <div class="menu-item" onclick="location.href='tinnhan.php'">
+                <div class="menu-item" onclick="location.href='binhluan.php'">
                     <i class="fas fa-comments"></i>
-                    <span>Tin nhắn</span>
-                </div>
-                <div class="menu-item" onclick="location.href='hoatdong.php'">
-                    <i class="fas fa-history"></i>
-                    <span>Hoạt động</span>
-                </div>
-                <div class="menu-item" onclick="location.href='caidat.php'">
-                    <i class="fas fa-cog"></i>
-                    <span>Cài đặt</span>
+                    <span>Bình luận</span>
                 </div>
             </div>
             <div class="menu-section">
@@ -1386,41 +1399,6 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                 <div class="topbar-search">
                     <i class="fas fa-search"></i>
                     <input type="text" id="searchInput" placeholder="Tìm kiếm người dùng..." autocomplete="off">
-                </div>
-            </div>
-            <div class="topbar-right"> 
-                <div class="admin-profile-enhanced" onclick="toggleProfileMenu()">
-                    <div class="profile-avatar-wrapper">
-                        <div class="profile-avatar">
-                            <?php 
-                            $name = $_SESSION['admin_name'] ?? 'Admin';
-                            $words = explode(' ', $name);
-                            if(count($words) >= 2) {
-                                $initials = mb_strtoupper(mb_substr($words[0], 0, 1) . mb_substr($words[count($words)-1], 0, 1));
-                            } else {
-                                $initials = mb_strtoupper(mb_substr($name, 0, 2));
-                            }
-                            echo $initials;
-                            ?>
-                        </div>
-                        <div class="online-status"></div>
-                    </div>
-                    <div class="profile-info">
-                        <span class="profile-name"><?php echo htmlspecialchars($_SESSION['admin_name'] ?? 'Admin'); ?></span>
-                        <?php 
-                        $role = $_SESSION['admin_role'] ?? 'bien_tap_vien';
-                        $role_display = [
-                            'sieu_quan_tri' => ['text' => 'Siêu Quản Trị', 'icon' => 'fa-crown', 'class' => 'role-super-admin'],
-                            'quan_tri' => ['text' => 'Quản Trị Viên', 'icon' => 'fa-user-shield', 'class' => 'role-admin'],
-                            'bien_tap_vien' => ['text' => 'Biên Tập Viên', 'icon' => 'fa-pen-fancy', 'class' => 'role-editor']
-                        ];
-                        $role_info = $role_display[$role] ?? $role_display['bien_tap_vien'];
-                        ?>
-                        <span class="profile-role <?php echo $role_info['class']; ?>">
-                            <i class="fas <?php echo $role_info['icon']; ?>"></i>
-                            <?php echo $role_info['text']; ?>
-                        </span>
-                    </div>
                 </div>
             </div>
         </div>
@@ -1579,8 +1557,14 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                                 <tr data-status="<?php echo $user['trang_thai']; ?>" data-level="<?php echo $user['cap_do'] ?? 1; ?>">
                                     <td><strong><?php echo $index + 1; ?></strong></td>
                                     <td>
-                                        <?php if(!empty($user['anh_dai_dien'])): ?>
-                                            <img src="<?php echo htmlspecialchars($user['anh_dai_dien']); ?>" class="user-avatar" alt="Avatar">
+                                        <?php if(!empty($user['anh_dai_dien'])): 
+                                            $avatarPath = $user['anh_dai_dien'];
+                                            // Nếu đường dẫn chưa có uploads/, thêm vào
+                                            if (strpos($avatarPath, 'uploads/') !== 0) {
+                                                $avatarPath = 'uploads/avatar/' . $avatarPath;
+                                            }
+                                        ?>
+                                            <img src="/DoAn_ChuyenNganh/<?php echo htmlspecialchars($avatarPath); ?>" class="user-avatar" alt="Avatar">
                                         <?php else: ?>
                                             <div class="user-avatar-placeholder">
                                                 <?php 
@@ -1635,11 +1619,10 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                                                     title="<?php echo $user['trang_thai'] === 'hoat_dong' ? 'Khóa' : 'Mở khóa'; ?>">
                                                 <i class="fas fa-<?php echo $user['trang_thai'] === 'hoat_dong' ? 'lock' : 'unlock'; ?>"></i>
                                             </button>
-                                            <button class="btn-action btn-notify" 
-                                                    data-user='<?php echo json_encode($user); ?>'
-                                                    onclick="openNotifyModal(JSON.parse(this.getAttribute('data-user')))" 
-                                                    title="Gửi thông báo">
-                                                <i class="fas fa-bell"></i>
+                                            <button class="btn-action btn-delete" 
+                                                    onclick="deleteUser(<?php echo $user['ma_nguoi_dung']; ?>, '<?php echo htmlspecialchars($user['ho_ten'] ?? $user['ten_dang_nhap'], ENT_QUOTES); ?>')" 
+                                                    title="Xóa người dùng">
+                                                <i class="fas fa-trash"></i>
                                             </button>
                                         </div>
                                     </td>
@@ -1703,34 +1686,23 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     </div>
 </div>
 
-<!-- NOTIFY MODAL -->
-<div class="modal" id="notifyModal">
-    <div class="modal-content" style="max-width:600px;">
+<!-- DELETE CONFIRM MODAL -->
+<div class="modal" id="deleteModal">
+    <div class="modal-content" style="max-width:500px;">
         <div class="modal-header">
-            <h3><i class="fas fa-bell"></i> Gửi thông báo cho người dùng</h3>
-            <button class="modal-close" onclick="closeModal('notifyModal')">
+            <h3><i class="fas fa-exclamation-triangle" style="color:var(--danger);"></i> Xác nhận xóa</h3>
+            <button class="modal-close" onclick="closeModal('deleteModal')">
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <form method="POST" action="">
-            <input type="hidden" name="action" value="send_notification">
-            <input type="hidden" name="ma_nguoi_dung" id="notify_ma_nguoi_dung">
-            <div class="form-group">
-                <label>Người nhận</label>
-                <input type="text" id="notify_user_name" disabled style="background:#f5f5f5;">
-            </div>
-            <div class="form-group">
-                <label>Tiêu đề <span style="color:red;">*</span></label>
-                <input type="text" name="tieu_de" required placeholder="Nhập tiêu đề thông báo">
-            </div>
-            <div class="form-group">
-                <label>Nội dung <span style="color:red;">*</span></label>
-                <textarea name="noi_dung" required placeholder="Nhập nội dung thông báo..." style="min-height:150px;"></textarea>
-            </div>
+        <p style="margin-bottom:24px;">Bạn có chắc chắn muốn xóa người dùng <strong id="delete_user_name"></strong>? Hành động này không thể hoàn tác!</p>
+        <form method="POST" id="deleteForm">
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="ma_nguoi_dung" id="delete_ma_nguoi_dung">
             <div class="form-actions">
-                <button type="button" class="btn-cancel" onclick="closeModal('notifyModal')">Hủy</button>
-                <button type="submit" class="btn-submit">
-                    <i class="fas fa-paper-plane"></i> Gửi thông báo
+                <button type="button" class="btn-cancel" onclick="closeModal('deleteModal')">Hủy</button>
+                <button type="submit" class="btn-submit" style="background:var(--danger);">
+                    <i class="fas fa-trash"></i> Xóa
                 </button>
             </div>
         </form>
@@ -1892,18 +1864,23 @@ function viewUserDetail(user) {
     const levelText = {1: 'Dễ', 2: 'Trung bình', 3: 'Khó'};
     const levelColor = {1: '#10b981', 2: '#f59e0b', 3: '#ef4444'};
     
+    // Xử lý đường dẫn avatar
+    let avatarPath = user.anh_dai_dien || '';
+    if (avatarPath && !avatarPath.startsWith('uploads/')) {
+        avatarPath = 'uploads/avatar/' + avatarPath;
+    }
+    
     content.innerHTML = `
         <!-- Header với avatar và thông tin cơ bản -->
         <div class="user-detail-header">
             <div class="user-detail-avatar">
                 ${user.anh_dai_dien ? 
-                    `<img src="${user.anh_dai_dien}" alt="Avatar">` :
+                    `<img src="/DoAn_ChuyenNganh/${avatarPath}" alt="Avatar">` :
                     `<div class="user-detail-avatar-placeholder">${(user.ho_ten || user.ten_dang_nhap).charAt(0).toUpperCase()}</div>`
                 }
             </div>
             <div class="user-detail-info">
                 <h2>${user.ho_ten || user.ten_dang_nhap}</h2>
-                <div class="user-detail-username">@${user.ten_dang_nhap}</div>
                 <div class="user-detail-badges">
                     <span class="user-badge">
                         <i class="fas fa-shield-alt"></i>
@@ -1912,10 +1889,6 @@ function viewUserDetail(user) {
                     <span class="user-badge">
                         <i class="fas fa-layer-group"></i>
                         Level ${user.cap_do || 1}
-                    </span>
-                    <span class="user-badge">
-                        <i class="fas fa-star"></i>
-                        ${Number(user.tong_diem || 0).toLocaleString()} điểm
                     </span>
                 </div>
             </div>
@@ -1936,13 +1909,6 @@ function viewUserDetail(user) {
                 </div>
                 <div class="user-stat-value">${user.cap_do || 1}</div>
                 <div class="user-stat-label">${levelText[user.cap_do || 1]}</div>
-            </div>
-            <div class="user-stat-box">
-                <div class="user-stat-icon" style="background:linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);">
-                    <i class="fas fa-sign-in-alt"></i>
-                </div>
-                <div class="user-stat-value">${user.so_lan_dang_nhap || 0}</div>
-                <div class="user-stat-label">Lần đăng nhập</div>
             </div>
         </div>
         
@@ -1980,21 +1946,6 @@ function viewUserDetail(user) {
                 <div class="user-info-value">${genderText}</div>
             </div>
             
-            <div class="user-info-item">
-                <div class="user-info-label">
-                    <i class="fas fa-calendar-plus"></i>
-                    Ngày tạo tài khoản
-                </div>
-                <div class="user-info-value">${user.ngay_tao_fmt || '-'}</div>
-            </div>
-            
-            <div class="user-info-item">
-                <div class="user-info-label">
-                    <i class="fas fa-clock"></i>
-                    Đăng nhập gần nhất
-                </div>
-                <div class="user-info-value">${user.lan_dang_nhap_cuoi_fmt || 'Chưa đăng nhập'}</div>
-            </div>
         </div>
     `;
     document.getElementById('viewDetailModal').style.display = 'flex';
@@ -2007,10 +1958,10 @@ function openPointsModal(user) {
     document.getElementById('pointsModal').style.display = 'flex';
 }
 
-function openNotifyModal(user) {
-    document.getElementById('notify_ma_nguoi_dung').value = user.ma_nguoi_dung;
-    document.getElementById('notify_user_name').value = user.ho_ten || user.ten_dang_nhap;
-    document.getElementById('notifyModal').style.display = 'flex';
+function deleteUser(userId, userName) {
+    document.getElementById('delete_ma_nguoi_dung').value = userId;
+    document.getElementById('delete_user_name').textContent = userName;
+    document.getElementById('deleteModal').style.display = 'flex';
 }
 
 function openEditModal(user) {
@@ -2151,81 +2102,6 @@ function toggleProfileMenu() {
         <div id="userDetailContent" style="padding:20px;">
             <!-- Content will be loaded by JavaScript -->
         </div>
-    </div>
-</div>
-
-<!-- POINTS MODAL -->
-<div class="modal" id="pointsModal">
-    <div class="modal-content" style="max-width:500px;">
-        <div class="modal-header">
-            <h3><i class="fas fa-star"></i> Cộng điểm cho người dùng</h3>
-            <button class="modal-close" onclick="closeModal('pointsModal')">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <form method="POST" action="">
-            <input type="hidden" name="action" value="update_points">
-            <input type="hidden" name="ma_nguoi_dung" id="points_ma_nguoi_dung">
-            <div style="padding:20px;">
-                <div class="form-group">
-                    <label>Người dùng</label>
-                    <input type="text" id="points_user_name" disabled style="background:#f5f5f5; font-weight:600;">
-                </div>
-                <div class="form-group">
-                    <label>Điểm hiện tại</label>
-                    <input type="text" id="points_current" disabled style="background:#f5f5f5; color:#f59e0b; font-weight:700; font-size:1.2rem;">
-                </div>
-                <div class="form-group">
-                    <label>Số điểm cộng thêm <span style="color:red;">*</span></label>
-                    <input type="number" name="diem_them" min="1" max="10000" required placeholder="Nhập số điểm..." style="font-size:1.1rem;">
-                    <small style="color:var(--gray); display:block; margin-top:5px;">
-                        <i class="fas fa-info-circle"></i> Nhập số dương để cộng điểm, số âm để trừ điểm
-                    </small>
-                </div>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn-cancel" onclick="closeModal('pointsModal')">Hủy</button>
-                <button type="submit" class="btn-submit">
-                    <i class="fas fa-check"></i> Xác nhận
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- NOTIFY MODAL -->
-<div class="modal" id="notifyModal">
-    <div class="modal-content" style="max-width:600px;">
-        <div class="modal-header">
-            <h3><i class="fas fa-bell"></i> Gửi thông báo cho người dùng</h3>
-            <button class="modal-close" onclick="closeModal('notifyModal')">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <form method="POST" action="">
-            <input type="hidden" name="action" value="send_notification">
-            <input type="hidden" name="ma_nguoi_dung" id="notify_ma_nguoi_dung">
-            <div style="padding:20px;">
-                <div class="form-group">
-                    <label>Gửi đến</label>
-                    <input type="text" id="notify_user_name" disabled style="background:#f5f5f5; font-weight:600;">
-                </div>
-                <div class="form-group">
-                    <label>Tiêu đề <span style="color:red;">*</span></label>
-                    <input type="text" name="tieu_de" required placeholder="Nhập tiêu đề thông báo...">
-                </div>
-                <div class="form-group">
-                    <label>Nội dung <span style="color:red;">*</span></label>
-                    <textarea name="noi_dung" rows="6" required placeholder="Nhập nội dung thông báo..."></textarea>
-                </div>
-            </div>
-            <div class="form-actions">
-                <button type="button" class="btn-cancel" onclick="closeModal('notifyModal')">Hủy</button>
-                <button type="submit" class="btn-submit">
-                    <i class="fas fa-paper-plane"></i> Gửi thông báo
-                </button>
-            </div>
-        </form>
     </div>
 </div>
 

@@ -11,12 +11,33 @@ checkAdminAuth();
 // Cập nhật thông tin admin từ database
 refreshAdminInfo();
 
+// Disable cache để tránh hiển thị dữ liệu cũ
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+
 $db = Database::getInstance();
 $vanHoaModel = new VanHoa();
 
 // Xử lý các hành động CRUD với PRG Pattern
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    
+    // Tạo token chống duplicate submit
+    $submitToken = $_POST['submit_token'] ?? '';
+    $sessionToken = $_SESSION['last_submit_token'] ?? '';
+    
+    // Kiểm tra duplicate submit
+    if ($action === 'add' && !empty($submitToken) && $submitToken === $sessionToken) {
+        // Đây là duplicate submit, bỏ qua
+        header('Location: vanhoa.php');
+        exit;
+    }
+    
+    // Lưu token mới
+    if ($action === 'add' && !empty($submitToken)) {
+        $_SESSION['last_submit_token'] = $submitToken;
+    }
     
     try {
         switch($action) {
@@ -32,15 +53,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 $data = [
-                    'tieu_de' => $_POST['tieu_de'],
+                    'tieu_de' => trim($_POST['tieu_de']),
                     'noi_dung' => $_POST['noi_dung'],
-                    'mo_ta_ngan' => $_POST['mo_ta_ngan'] ?? '',
-                    'ma_danh_muc' => $_POST['danh_muc'] ?? null,
-                    'tac_gia' => $_SESSION['admin_name'] ?? 'Admin',
+                    'tom_tat' => $_POST['tom_tat'] ?? '',
+                    'ma_danh_muc' => !empty($_POST['danh_muc']) ? $_POST['danh_muc'] : null,
                     'trang_thai' => $_POST['trang_thai'],
-                    'noi_bat' => isset($_POST['noi_bat']) ? 1 : 0,
-                    'hinh_anh' => $imagePath
+                    'hinh_anh_chinh' => $imagePath
                 ];
+                
+                // Kiểm tra bài viết trùng tiêu đề trong 5 giây gần đây
+                $recentDuplicate = $db->querySingle(
+                    "SELECT ma_van_hoa FROM van_hoa WHERE tieu_de = ? AND ngay_tao > DATE_SUB(NOW(), INTERVAL 5 SECOND)",
+                    [trim($_POST['tieu_de'])]
+                );
+                
+                if ($recentDuplicate) {
+                    $_SESSION['flash_message'] = 'Bài viết đã được tạo trước đó!';
+                    $_SESSION['flash_type'] = 'warning';
+                    header('Location: vanhoa.php');
+                    exit;
+                }
+                
                 if($vanHoaModel->create($data)) {
                     $_SESSION['flash_message'] = 'Thêm bài viết văn hóa thành công!';
                     $_SESSION['flash_type'] = 'success';
@@ -54,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'edit':
                 // Lấy thông tin bài viết hiện tại
                 $currentArticle = $vanHoaModel->getById($_POST['ma_van_hoa']);
-                $imagePath = $currentArticle['hinh_anh'] ?? '';
+                $imagePath = $currentArticle['hinh_anh_chinh'] ?? $currentArticle['hinh_anh'] ?? '';
                 
                 // Xử lý upload ảnh mới
                 if (isset($_FILES['hinh_anh']) && $_FILES['hinh_anh']['error'] !== UPLOAD_ERR_NO_FILE) {
@@ -62,8 +95,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $newImagePath = $uploader->upload($_FILES['hinh_anh']);
                     if ($newImagePath) {
                         // Xóa ảnh cũ nếu có
-                        if ($imagePath && file_exists(__DIR__ . '/' . $imagePath)) {
-                            @unlink(__DIR__ . '/' . $imagePath);
+                        if ($imagePath && file_exists(__DIR__ . '/../' . $imagePath)) {
+                            @unlink(__DIR__ . '/../' . $imagePath);
                         }
                         $imagePath = $newImagePath;
                     } else {
@@ -73,14 +106,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $data = [
                     'tieu_de' => $_POST['tieu_de'],
+                    'tieu_de_khmer' => $_POST['tieu_de_khmer'] ?? '',
                     'noi_dung' => $_POST['noi_dung'],
-                    'mo_ta_ngan' => $_POST['mo_ta_ngan'] ?? '',
-                    'ma_danh_muc' => $_POST['danh_muc'] ?? null,
-                    'tac_gia' => $_POST['tac_gia'] ?? $_SESSION['admin_name'] ?? 'Admin',
+                    'tom_tat' => $_POST['tom_tat'] ?? '',
+                    'ma_danh_muc' => !empty($_POST['danh_muc']) ? $_POST['danh_muc'] : null,
                     'trang_thai' => $_POST['trang_thai'],
-                    'noi_bat' => isset($_POST['noi_bat']) ? 1 : 0,
-                    'hinh_anh' => $imagePath
+                    'hinh_anh_chinh' => $imagePath
                 ];
+                
                 if($vanHoaModel->update($_POST['ma_van_hoa'], $data)) {
                     $_SESSION['flash_message'] = 'Cập nhật bài viết văn hóa thành công!';
                     $_SESSION['flash_type'] = 'success';
@@ -94,8 +127,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'delete':
                 // Lấy thông tin bài viết để xóa ảnh
                 $article = $vanHoaModel->getById($_POST['ma_van_hoa']);
-                if ($article && $article['hinh_anh'] && file_exists(__DIR__ . '/' . $article['hinh_anh'])) {
-                    @unlink(__DIR__ . '/' . $article['hinh_anh']);
+                $articleImage = $article['hinh_anh_chinh'] ?? $article['hinh_anh'] ?? '';
+                if ($article && $articleImage && file_exists(__DIR__ . '/../' . $articleImage)) {
+                    @unlink(__DIR__ . '/../' . $articleImage);
                 }
                 
                 if($vanHoaModel->delete($_POST['ma_van_hoa'])) {
@@ -122,17 +156,79 @@ $messageType = $_SESSION['flash_type'] ?? '';
 unset($_SESSION['flash_message'], $_SESSION['flash_type']);
 
 // Lấy danh sách bài viết văn hóa
-$articles = $vanHoaModel->getAll(1000, 0);
-if(!is_array($articles)) {
-    $articles = [];
+$sql = "SELECT * FROM van_hoa ORDER BY ngay_tao DESC LIMIT 1000";
+$articlesRaw = $db->query($sql) ?: [];
+
+// Lấy thông tin người tạo riêng nếu cần - KHÔNG dùng reference
+$articlesWithCreator = [];
+foreach($articlesRaw as $article) {
+    if (!empty($article['ma_nguoi_tao'])) {
+        $creator = $db->querySingle("SELECT ho_ten FROM quan_tri_vien WHERE ma_qtv = ?", [$article['ma_nguoi_tao']]);
+        $article['nguoi_tao'] = $creator['ho_ten'] ?? 'N/A';
+    } else {
+        $article['nguoi_tao'] = 'N/A';
+    }
+    $articlesWithCreator[] = $article;
+}
+$articlesRaw = $articlesWithCreator;
+
+// Loại bỏ duplicate dựa trên ma_van_hoa - Phương pháp mới
+$articles = [];
+$seenIds = [];
+
+// Đầu tiên, log raw data
+error_log("=== RAW ARTICLES FROM DB ===");
+error_log("Count: " . count($articlesRaw));
+foreach($articlesRaw as $idx => $art) {
+    error_log("Raw[$idx]: ID={$art['ma_van_hoa']}, Title={$art['tieu_de']}");
 }
 
-// Format ngày tạo
-foreach($articles as &$article) {
+// Loại bỏ duplicate
+foreach($articlesRaw as $article) {
+    $id = (int)$article['ma_van_hoa'];
+    if (!isset($seenIds[$id])) {
+        $seenIds[$id] = true;
+        $articles[] = $article;
+        error_log("ADDED: ID {$id} - {$article['tieu_de']}");
+    } else {
+        error_log("SKIPPED DUPLICATE: ID {$id} - {$article['tieu_de']}");
+    }
+}
+
+// Log kết quả cuối cùng
+error_log("=== FINAL ARTICLES ===");
+error_log("Count: " . count($articles));
+foreach($articles as $idx => $art) {
+    error_log("Final[$idx]: ID={$art['ma_van_hoa']}, Title={$art['tieu_de']}");
+}
+
+// Lấy danh mục từ database để map
+$categoriesForMap = $db->query("SELECT ma_danh_muc, ten_danh_muc FROM danh_muc WHERE loai = 'van_hoa'") ?: [];
+$categoryMap = [];
+foreach($categoriesForMap as $cat) {
+    $categoryMap[$cat['ma_danh_muc']] = $cat['ten_danh_muc'];
+}
+
+// Xử lý articles - KHÔNG dùng reference để tránh side effect
+$processedArticles = [];
+foreach($articles as $article) {
+    // Thêm tên danh mục
+    if(isset($article['ma_danh_muc']) && isset($categoryMap[$article['ma_danh_muc']])) {
+        $article['ten_danh_muc'] = $categoryMap[$article['ma_danh_muc']];
+    } else {
+        $article['ten_danh_muc'] = 'Chưa phân loại';
+    }
+    
+    // Format ngày tạo
     if(isset($article['ngay_tao'])) {
         $article['ngay_tao_fmt'] = date('d/m/Y H:i', strtotime($article['ngay_tao']));
     }
+    
+    $processedArticles[] = $article;
 }
+
+// Gán lại vào $articles
+$articles = $processedArticles;
 
 // Lấy danh mục từ dữ liệu có sẵn
 $categories = $vanHoaModel->getCategories();
@@ -692,12 +788,14 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     gap:12px;
     transition:all 0.3s ease;
     box-shadow:0 2px 8px rgba(99,102,241,0.15);
+    text-decoration:none;
 }
 .btn-add-new:hover {
     transform:translateY(-2px);
     box-shadow:0 8px 24px rgba(99,102,241,0.3);
     background:var(--primary);
     color:var(--white);
+    text-decoration:none;
 }
 .btn-add-new i {
     font-size:1.15rem;
@@ -705,6 +803,14 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
 }
 .btn-add-new:hover i {
     transform:rotate(90deg) scale(1.3);
+}
+.btn-quiz-manage {
+    background:var(--white);
+    color:var(--primary);
+}
+.btn-quiz-manage:hover {
+    background:var(--primary);
+    color:var(--white);
 }
 
 /* Filter Bar */
@@ -842,6 +948,7 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     max-width:90%;
     max-height:90vh;
     overflow-y:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,0.3);
 }
 .modal-header {
     display:flex;
@@ -852,6 +959,21 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
 .modal-header h3 {
     font-size:1.5rem;
     font-weight:800;
+    color:var(--dark);
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+.modal-header h3 i {
+    width:40px;
+    height:40px;
+    background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--white);
+    font-size:1.2rem;
 }
 .modal-close {
     width:36px;
@@ -885,6 +1007,17 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     font-weight:700;
     font-size:0.95rem;
     color:var(--dark);
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+.form-group label i {
+    font-size:1rem;
+    color:var(--primary);
+}
+.form-group label .required {
+    color:var(--danger);
+    margin-left:2px;
 }
 .form-group input,
 .form-group select,
@@ -894,6 +1027,19 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     border-radius:12px;
     font-size:0.95rem;
     transition:all 0.3s ease;
+    background:var(--white);
+}
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+    color:#a0aec0;
+    font-weight:400;
+}
+.form-group select {
+    appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236366f1' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 16px center;
+    padding-right:40px;
 }
 .form-group textarea {
     min-height:200px;
@@ -913,18 +1059,25 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     margin-top:24px;
 }
 .btn-submit {
-    padding:12px 32px;
-    background:var(--gradient-primary);
+    padding:14px 36px;
+    background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color:var(--white);
     border:none;
     border-radius:12px;
     font-weight:700;
+    font-size:1rem;
     cursor:pointer;
     transition:all 0.3s ease;
+    display:flex;
+    align-items:center;
+    gap:8px;
 }
 .btn-submit:hover {
     transform:translateY(-2px);
-    box-shadow:var(--shadow-lg);
+    box-shadow:0 8px 24px rgba(102,126,234,0.4);
+}
+.btn-submit i {
+    font-size:1.1rem;
 }
 .btn-cancel {
     padding:12px 32px;
@@ -934,6 +1087,56 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     border-radius:12px;
     font-weight:700;
     cursor:pointer;
+}
+
+/* HTML Editor Toolbar */
+.html-editor-toolbar {
+    background:var(--gray-light);
+    padding:10px 14px;
+    border-radius:12px 12px 0 0;
+    border:2px solid var(--gray-light);
+    border-bottom:none;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+}
+.editor-btn {
+    width:40px;
+    height:40px;
+    border:none;
+    background:var(--white);
+    border-radius:8px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:1rem;
+    font-weight:700;
+    color:var(--dark);
+    transition:all 0.2s ease;
+    box-shadow:0 1px 3px rgba(0,0,0,0.1);
+}
+.editor-btn:hover {
+    background:var(--primary);
+    color:var(--white);
+    transform:translateY(-1px);
+    box-shadow:0 4px 8px rgba(99,102,241,0.3);
+}
+.editor-btn:active {
+    transform:translateY(0);
+}
+.editor-btn i {
+    font-size:0.95rem;
+}
+.html-editor-toolbar::before {
+    content:'';
+    display:inline-block;
+    width:2px;
+    height:24px;
+    background:var(--gray);
+    opacity:0.3;
+    margin:0 4px;
 }
 
 /* Toast */
@@ -1031,21 +1234,9 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                     <i class="fas fa-users"></i>
                     <span>Người dùng</span>
                 </div>
-                <div class="menu-item" onclick="location.href='thongbao.php'">
-                    <i class="fas fa-bell"></i>
-                    <span>Thông báo</span>
-                </div>
-                <div class="menu-item" onclick="location.href='tinnhan.php'">
+                <div class="menu-item" onclick="location.href='binhluan.php'">
                     <i class="fas fa-comments"></i>
-                    <span>Tin nhắn</span>
-                </div>
-                <div class="menu-item" onclick="location.href='hoatdong.php'">
-                    <i class="fas fa-history"></i>
-                    <span>Hoạt động</span>
-                </div>
-                <div class="menu-item" onclick="location.href='caidat.php'">
-                    <i class="fas fa-cog"></i>
-                    <span>Cài đặt</span>
+                    <span>Bình luận</span>
                 </div>
             </div>
             <div class="menu-section">
@@ -1118,10 +1309,16 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                             <p>Khám phá và quản lý kho tàng văn hóa Khmer Nam Bộ</p>
                         </div>
                     </div>
-                    <button class="btn-add-new" onclick="openAddModal()">
-                        <i class="fas fa-plus-circle"></i>
-                        Thêm bài mới
-                    </button>
+                    <div style="display: flex; gap: 12px;">
+                        <a href="quiz-vanhoa.php" class="btn-add-new btn-quiz-manage">
+                            <i class="fas fa-question-circle"></i>
+                            Quản lý Quiz
+                        </a>
+                        <button class="btn-add-new" onclick="openAddModal()">
+                            <i class="fas fa-plus-circle"></i>
+                            Thêm bài mới
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1237,7 +1434,7 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                     <table class="data-table" id="articlesTable">
                         <thead>
                             <tr>
-                                <th>ID</th>
+                                <th>STT</th>
                                 <th>Hình ảnh</th>
                                 <th>Tiêu đề</th>
                                 <th>Danh mục</th>
@@ -1248,6 +1445,14 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                             </tr>
                         </thead>
                         <tbody>
+                            <?php 
+                            // DEBUG: In ra số lượng articles
+                            echo "<!-- DEBUG: Total articles to render: " . count($articles) . " -->\n";
+                            echo "<!-- DEBUG: Article IDs: " . implode(', ', array_column($articles, 'ma_van_hoa')) . " -->\n";
+                            echo "<!-- DEBUG: Articles array: " . print_r(array_map(function($a) { 
+                                return ['id' => $a['ma_van_hoa'], 'title' => $a['tieu_de']]; 
+                            }, $articles), true) . " -->\n";
+                            ?>
                             <?php if(empty($articles)): ?>
                             <tr>
                                 <td colspan="8" style="text-align:center; padding:40px; color:var(--gray);">
@@ -1257,13 +1462,38 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                                 </td>
                             </tr>
                             <?php else: ?>
-                            <?php foreach($articles as $article): ?>
-                            <tr data-category="<?php echo $article['ma_danh_muc'] ?? ''; ?>" 
+                            <?php 
+                            // Debug: Đếm số lần render
+                            $renderCount = 0;
+                            foreach($articles as $article): 
+                                $renderCount++;
+                                $articleId = (int)$article['ma_van_hoa'];
+                            ?>
+                            <!-- Render #<?php echo $renderCount; ?> - ID: <?php echo $articleId; ?> - Title: <?php echo htmlspecialchars($article['tieu_de']); ?> -->
+                            <tr data-article-id="<?php echo $articleId; ?>"
+                                data-tieu-de="<?php echo htmlspecialchars($article['tieu_de'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                data-tom-tat="<?php echo htmlspecialchars($article['tom_tat'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                data-danh-muc="<?php echo htmlspecialchars($article['ma_danh_muc'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                data-trang-thai="<?php echo htmlspecialchars($article['trang_thai'] ?? 'nhap', ENT_QUOTES, 'UTF-8'); ?>"
+                                data-noi-dung="<?php echo htmlspecialchars($article['noi_dung'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                data-hinh-anh="<?php echo htmlspecialchars($article['hinh_anh_chinh'] ?? $article['hinh_anh'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                data-category="<?php echo $article['ma_danh_muc'] ?? ''; ?>" 
                                 data-status="<?php echo $article['trang_thai'] ?? 'nhap'; ?>">
-                                <td>#<?php echo $article['ma_van_hoa']; ?></td>
+                                <td><?php echo $renderCount; ?></td>
                                 <td>
-                                    <?php if($article['hinh_anh']): ?>
-                                    <img src="<?php echo htmlspecialchars($article['hinh_anh']); ?>" alt="" class="article-image">
+                                    <?php 
+                                    $imgPath = $article['hinh_anh_chinh'] ?? $article['hinh_anh'] ?? '';
+                                    $imgUrl = '';
+                                    if (!empty($imgPath)) {
+                                        if (strpos($imgPath, 'uploads/') === 0) {
+                                            $imgUrl = '../' . $imgPath;
+                                        } else {
+                                            $imgUrl = '../uploads/vanhoa/' . $imgPath;
+                                        }
+                                    }
+                                    ?>
+                                    <?php if(!empty($imgUrl)): ?>
+                                    <img src="<?php echo htmlspecialchars($imgUrl); ?>" alt="" class="article-image">
                                     <?php else: ?>
                                     <div class="article-image" style="background:var(--gray-light); display:flex; align-items:center; justify-content:center;">
                                         <i class="fas fa-image" style="color:var(--gray);"></i>
@@ -1285,10 +1515,10 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                                 <td><?php echo $article['ngay_tao_fmt']; ?></td>
                                 <td>
                                     <div class="action-buttons">
-                                        <button class="btn-action btn-edit" onclick='editArticle(<?php echo json_encode($article); ?>)' title="Sửa">
+                                        <button class="btn-action btn-edit" onclick="editArticle(<?php echo $articleId; ?>)" title="Sửa">
                                             <i class="fas fa-edit"></i>
                                         </button>
-                                        <button class="btn-action btn-delete" onclick="deleteArticle(<?php echo $article['ma_van_hoa']; ?>)" title="Xóa">
+                                        <button class="btn-action btn-delete" onclick="deleteArticle(<?php echo $articleId; ?>)" title="Xóa">
                                             <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
@@ -1308,54 +1538,61 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
 <div class="modal" id="addModal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Thêm bài viết mới</h3>
+            <h3><i class="fas fa-book-open"></i> Thêm bài viết mới</h3>
             <button class="modal-close" onclick="closeAddModal()">
                 <i class="fas fa-times"></i>
             </button>
         </div>
         <form method="POST" id="addForm" enctype="multipart/form-data">
             <input type="hidden" name="action" value="add">
+            <input type="hidden" name="submit_token" id="add_submit_token" value="">
             <div class="form-grid">
                 <div class="form-group full-width">
-                    <label>Tiêu đề *</label>
+                    <label><i class="fas fa-heading"></i> Tiêu đề <span class="required">*</span></label>
                     <input type="text" name="tieu_de" required placeholder="Nhập tiêu đề bài viết">
                 </div>
                 <div class="form-group full-width">
-                    <label>Mô tả ngắn</label>
-                    <textarea name="mo_ta_ngan" rows="2" placeholder="Mô tả ngắn gọn về bài viết"></textarea>
+                    <label><i class="fas fa-align-left"></i> Mô tả ngắn</label>
+                    <textarea name="tom_tat" rows="2" placeholder="Mô tả ngắn gọn về bài viết"></textarea>
                 </div>
                 <div class="form-group">
-                    <label>Danh mục</label>
+                    <label><i class="fas fa-folder"></i> Danh mục</label>
                     <select name="danh_muc">
-                        <option value="">-- Chọn danh mục --</option>
+                        <option value="">📂 Chọn danh mục</option>
                         <?php foreach($categories as $cat): ?>
                         <option value="<?php echo $cat['ma_danh_muc']; ?>">
-                            <?php echo htmlspecialchars($cat['ten_danh_muc']); ?>
+                            📁 <?php echo htmlspecialchars($cat['ten_danh_muc']); ?>
                         </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Trạng thái *</label>
+                    <label><i class="fas fa-toggle-on"></i> Trạng thái <span class="required">*</span></label>
                     <select name="trang_thai" required>
-                        <option value="nhap">Bản nháp</option>
-                        <option value="xuat_ban">Xuất bản</option>
+                        <option value="nhap">📝 Bản nháp</option>
+                        <option value="xuat_ban">✅ Xuất bản</option>
                     </select>
                 </div>
                 <div class="form-group full-width">
-                    <label>Hình ảnh (JPG, PNG, GIF, WEBP - Tối đa 5MB)</label>
+                    <label><i class="fas fa-image"></i> Hình ảnh (JPG, PNG, GIF, WEBP - Tối đa 5MB)</label>
                     <input type="file" name="hinh_anh" id="add_hinh_anh" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" onchange="previewImage(this, 'add_preview')">
                     <img id="add_preview" style="display:none; margin-top:12px; max-width:200px; max-height:200px; border-radius:12px; object-fit:cover; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
                 </div>
                 <div class="form-group full-width">
-                    <label style="display:flex; align-items:center; gap:8px;">
-                        <input type="checkbox" name="noi_bat" value="1">
-                        <span>Bài viết nổi bật</span>
-                    </label>
-                </div>
-                <div class="form-group full-width">
-                    <label>Nội dung *</label>
-                    <textarea name="noi_dung" required placeholder="Nhập nội dung bài viết (hỗ trợ HTML)" rows="10"></textarea>
+                    <label><i class="fas fa-file-code" style="color: var(--primary); margin-right: 6px;"></i>Nội dung <small style="color: var(--gray); font-weight: 400;">(hỗ trợ HTML)</small> <span style="color:red;">*</span></label>
+                    <div class="html-editor-toolbar" style="background: var(--gray-light); padding: 8px 12px; border-radius: 12px 12px 0 0; border: 2px solid var(--gray-light); border-bottom: none; display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'b')" title="In đậm"><i class="fas fa-bold"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'i')" title="In nghiêng"><i class="fas fa-italic"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'u')" title="Gạch chân"><i class="fas fa-underline"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'h2')" title="Tiêu đề 2"><i class="fas fa-heading"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'h3')" title="Tiêu đề 3"><i class="fas fa-heading" style="font-size: 0.9em;"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'p')" title="Đoạn văn"><i class="fas fa-paragraph"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'ul')" title="Danh sách"><i class="fas fa-list-ul"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'ol')" title="Danh sách số"><i class="fas fa-list-ol"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'a')" title="Link"><i class="fas fa-link"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertImage('add_noi_dung')" title="Chèn ảnh"><i class="fas fa-image"></i></button>
+                    </div>
+                    <textarea name="noi_dung" id="add_noi_dung" required placeholder="Nhập nội dung chi tiết bài viết...&#10;&#10;Ví dụ:&#10;<h2>Giới thiệu</h2>&#10;<p>Nội dung bài viết...</p>&#10;<ul>&#10;  <li>Điểm 1</li>&#10;  <li>Điểm 2</li>&#10;</ul>" rows="10" style="border-radius: 0 0 12px 12px; font-family: 'Consolas', monospace; font-size: 0.9rem;"></textarea>
                 </div>
             </div>
             <div class="form-actions">
@@ -1387,7 +1624,7 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                 </div>
                 <div class="form-group full-width">
                     <label>Mô tả ngắn</label>
-                    <textarea name="mo_ta_ngan" id="edit_mo_ta_ngan" rows="2"></textarea>
+                    <textarea name="tom_tat" id="edit_mo_ta_ngan" rows="2"></textarea>
                 </div>
                 <div class="form-group">
                     <label>Danh mục</label>
@@ -1418,14 +1655,20 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                     <img id="edit_preview" style="display:none; margin-top:12px; max-width:200px; max-height:200px; border-radius:12px; object-fit:cover; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
                 </div>
                 <div class="form-group full-width">
-                    <label style="display:flex; align-items:center; gap:8px;">
-                        <input type="checkbox" name="noi_bat" id="edit_noi_bat" value="1">
-                        <span>Bài viết nổi bật</span>
-                    </label>
-                </div>
-                <div class="form-group full-width">
-                    <label>Nội dung *</label>
-                    <textarea name="noi_dung" id="edit_noi_dung" required rows="10"></textarea>
+                    <label><i class="fas fa-file-code" style="color: var(--primary); margin-right: 6px;"></i>Nội dung <small style="color: var(--gray); font-weight: 400;">(hỗ trợ HTML)</small> <span style="color:red;">*</span></label>
+                    <div class="html-editor-toolbar" style="background: var(--gray-light); padding: 8px 12px; border-radius: 12px 12px 0 0; border: 2px solid var(--gray-light); border-bottom: none; display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'b')" title="In đậm"><i class="fas fa-bold"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'i')" title="In nghiêng"><i class="fas fa-italic"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'u')" title="Gạch chân"><i class="fas fa-underline"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'h2')" title="Tiêu đề 2"><i class="fas fa-heading"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'h3')" title="Tiêu đề 3"><i class="fas fa-heading" style="font-size: 0.9em;"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'p')" title="Đoạn văn"><i class="fas fa-paragraph"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'ul')" title="Danh sách"><i class="fas fa-list-ul"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'ol')" title="Danh sách số"><i class="fas fa-list-ol"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'a')" title="Link"><i class="fas fa-link"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertImage('edit_noi_dung')" title="Chèn ảnh"><i class="fas fa-image"></i></button>
+                    </div>
+                    <textarea name="noi_dung" id="edit_noi_dung" required rows="10" style="border-radius: 0 0 12px 12px; font-family: 'Consolas', monospace; font-size: 0.9rem;"></textarea>
                 </div>
             </div>
             <div class="form-actions">
@@ -1500,8 +1743,24 @@ function previewImage(input, previewId) {
     }
 }
 
+// Tạo token ngẫu nhiên
+function generateToken() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
 // Modal functions
 function openAddModal() {
+    // Reset form
+    document.getElementById('addForm').reset();
+    document.getElementById('add_preview').style.display = 'none';
+    // Tạo token mới mỗi khi mở modal
+    document.getElementById('add_submit_token').value = generateToken();
+    // Enable lại nút submit
+    const submitBtn = document.querySelector('#addForm button[type="submit"]');
+    if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-save"></i> Lưu bài viết';
+    }
     document.getElementById('addModal').style.display = 'flex';
 }
 function closeAddModal() {
@@ -1520,14 +1779,30 @@ function closeDeleteModal() {
     document.getElementById('deleteModal').style.display = 'none';
 }
 
-// Edit article
-function editArticle(article) {
+// Edit article - Sử dụng data attributes thay vì JSON để tránh lỗi
+function editArticle(articleId) {
+    // Lấy dữ liệu từ data attributes của row
+    const row = document.querySelector(`tr[data-article-id="${articleId}"]`);
+    if (!row) {
+        alert('Không tìm thấy bài viết!');
+        return;
+    }
+    
+    const article = {
+        ma_van_hoa: row.dataset.articleId,
+        tieu_de: row.dataset.tieuDe || '',
+        tom_tat: row.dataset.tomTat || '',
+        danh_muc: row.dataset.danhMuc || '',
+        trang_thai: row.dataset.trangThai || 'nhap',
+        noi_dung: row.dataset.noiDung || '',
+        hinh_anh_chinh: row.dataset.hinhAnh || ''
+    };
+    
     document.getElementById('edit_ma_van_hoa').value = article.ma_van_hoa;
     document.getElementById('edit_tieu_de').value = article.tieu_de;
-    document.getElementById('edit_mo_ta_ngan').value = article.mo_ta_ngan || '';
-    document.getElementById('edit_danh_muc').value = article.ma_danh_muc || '';
+    document.getElementById('edit_mo_ta_ngan').value = article.tom_tat;
+    document.getElementById('edit_danh_muc').value = article.danh_muc;
     document.getElementById('edit_trang_thai').value = article.trang_thai;
-    document.getElementById('edit_noi_bat').checked = article.noi_bat == 1;
     document.getElementById('edit_noi_dung').value = article.noi_dung;
     
     // Reset file input và preview
@@ -1537,10 +1812,12 @@ function editArticle(article) {
     // Hiển thị ảnh hiện tại nếu có
     const currentImageWrapper = document.getElementById('edit_current_image_wrapper');
     const currentImage = document.getElementById('edit_current_image');
-    document.getElementById('edit_current_hinh_anh').value = article.hinh_anh || '';
+    const imgPath = article.hinh_anh_chinh;
+    document.getElementById('edit_current_hinh_anh').value = imgPath;
     
-    if (article.hinh_anh) {
-        currentImage.src = article.hinh_anh;
+    if (imgPath) {
+        let imgUrl = imgPath.startsWith('uploads/') ? '../' + imgPath : '../uploads/vanhoa/' + imgPath;
+        currentImage.src = imgUrl;
         currentImageWrapper.style.display = 'block';
     } else {
         currentImageWrapper.style.display = 'none';
@@ -1591,6 +1868,40 @@ function applyFilters() {
     });
 }
 
+// Prevent double submit for add form
+document.getElementById('addForm')?.addEventListener('submit', function(e) {
+    const submitBtn = this.querySelector('button[type="submit"]');
+    if (submitBtn.disabled) {
+        e.preventDefault();
+        return false;
+    }
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
+});
+
+// Prevent double submit for edit form
+document.getElementById('editForm')?.addEventListener('submit', function(e) {
+    const submitBtn = this.querySelector('button[type="submit"]');
+    if (submitBtn.disabled) {
+        e.preventDefault();
+        return false;
+    }
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang cập nhật...';
+});
+
+// Debug: Đếm số rows thực tế trong DOM
+window.addEventListener('DOMContentLoaded', function() {
+    const rows = document.querySelectorAll('#articlesTable tbody tr');
+    console.log('=== DOM DEBUG ===');
+    console.log('Total rows in DOM:', rows.length);
+    rows.forEach((row, index) => {
+        const id = row.dataset.articleId || 'N/A';
+        const title = row.cells[2]?.textContent || 'N/A';
+        console.log(`Row ${index + 1}: ID=${id}, Title=${title}`);
+    });
+});
+
 // Toast auto-hide
 <?php if($message): ?>
 setTimeout(() => {
@@ -1617,6 +1928,45 @@ function toggleMessages(e) {
 
 function toggleProfileMenu() {
     alert('Chức năng menu profile đang được phát triển');
+}
+
+// HTML Editor Functions
+function insertTag(textareaId, tag) {
+    const textarea = document.getElementById(textareaId);
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end);
+    
+    if (tag === 'ul' || tag === 'ol') {
+        const listHtml = `<${tag}>\n  <li>Mục 1</li>\n  <li>Mục 2</li>\n  <li>Mục 3</li>\n</${tag}>`;
+        textarea.value = textarea.value.substring(0, start) + listHtml + textarea.value.substring(end);
+        textarea.focus();
+    } else if (tag === 'a') {
+        const url = prompt('Nhập URL:', 'https://');
+        if (url) {
+            const linkText = selectedText || 'Văn bản liên kết';
+            const linkHtml = `<a href="${url}" target="_blank">${linkText}</a>`;
+            textarea.value = textarea.value.substring(0, start) + linkHtml + textarea.value.substring(end);
+            textarea.focus();
+        }
+    } else {
+        const replacement = `<${tag}>${selectedText}</${tag}>`;
+        textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+        textarea.focus();
+        textarea.setSelectionRange(start + tag.length + 2, start + tag.length + 2 + selectedText.length);
+    }
+}
+
+function insertImage(textareaId) {
+    const url = prompt('Nhập URL hình ảnh:', 'https://');
+    if (url) {
+        const alt = prompt('Nhập mô tả hình ảnh:', 'Hình ảnh');
+        const textarea = document.getElementById(textareaId);
+        const start = textarea.selectionStart;
+        const imgHtml = `<img src="${url}" alt="${alt}" style="max-width: 100%;">`;
+        textarea.value = textarea.value.substring(0, start) + imgHtml + textarea.value.substring(start);
+        textarea.focus();
+    }
 }
 </script>
 

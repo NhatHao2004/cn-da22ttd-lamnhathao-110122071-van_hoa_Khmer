@@ -1,0 +1,87 @@
+thiết kế lại giao diện cho search.php theo phong cách unified design giống van_hoa
+filter=all&view=calendar
+Đã thêm text-align: justify để căn đều 2 bên cho nội dung bài viết.
+
+2: http://localhost/DoAn_ChuyenNganh/FrontendAdmin/hoctiengkhmer.php: thêm bài học mới thì thêm được vẫn đẩy csdl lên được van_hoa_khmer.sql, nhưng  http://localhost/DoAn_ChuyenNganh/FrontendUser/hoc-tieng-khmer.php không hiển thị được nội dung gì từ csdl.
+
+http://localhost/DoAn_ChuyenNganh/FrontendAdmin/hoctiengkhmer.php: Danh sách bài học (STT,Hình ảnh,Tiêu đề,Danh mục, Cấp độ,Thờilượng, Trạng thái, Ngày tạo, Thao tác)
+Trong form: Thêm bài học mới và Chỉnh sửa bài học bỏ đi trường (Đánh dấu là bài học nổi bật(Hiển thị ưu tiên trên trang chủ))
+
+Hoàn thành bài học (+10 điểm): khi bấm hoàn thành số điểm sẽ được + vào cột tổng điểm của người dùng.
+
+hero-stats
+your-rank-card
+
+full-Leaderboard
+
+http://localhost/DoAn_ChuyenNganh/FrontendUser/index.php
+<!-- Hero Section -->
+<!-- Features Section -->
+<!-- CTA Section -->
+Gộp lại thành 1 Section duy nhất.  
+
+<input type="text" id="points_current" disabled="" style="background:#f5f5f5; color:#f59e0b; font-weight:700; font-size:1.2rem;">
+
+<div class="modal fade" id="createQuizModal" tabindex="-1" style="display: none;" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content modern-modal">
+            <form method="POST">
+                <div class="modal-header-modern gradient-primary">
+                    <div class="modal-icon-wrapper">
+                        <i class="fas fa-plus-circle"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title-modern">Tạo Quiz Mới</h5>
+                        <p class="modal-subtitle">Tạo bài kiểm tra kiến thức mới</p>
+                    </div>
+                    <button type="button" class="close-modern" data-dismiss="modal">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body-modern">
+                    <input type="hidden" name="action" value="create_quiz">
+                    <div class="form-group-modern">
+                        <label class="form-label-modern">
+                            <i class="fas fa-book"></i> Chọn Bài Viết <span class="text-danger">*</span>
+                        </label>
+                        <select name="ma_van_hoa" class="form-control-modern" required="">
+                            <option value="">-- Chọn bài viết --</option>
+                                                    </select>
+                    </div>
+                    <div class="form-group-modern">
+                        <label class="form-label-modern">
+                            <i class="fas fa-heading"></i> Tiêu Đề Quiz <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" name="tieu_de" class="form-control-modern" placeholder="Nhập tiêu đề quiz..." required="">
+                    </div>
+                    <div class="form-group-modern">
+                        <label class="form-label-modern">
+                            <i class="fas fa-align-left"></i> Mô Tả
+                        </label>
+                        <textarea name="mo_ta" class="form-control-modern" rows="3" placeholder="Nhập mô tả ngắn về quiz..."></textarea>
+                    </div>
+                    <div class="form-group-modern">
+                        <label class="form-label-modern">
+                            <i class="fas fa-clock"></i> Thời Gian (giây)
+                        </label>
+                        <input type="number" name="thoi_gian" class="form-control-modern" value="600" min="60" placeholder="600">
+                    </div>
+                </div>
+                <div class="modal-footer-modern">
+                    <button type="button" class="btn-modern btn-secondary-modern" data-dismiss="modal">
+                        <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <button type="submit" class="btn-modern btn-primary-modern">
+                        <i class="fas fa-save"></i> Tạo Quiz
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+sữa các vấn đề sau: http://localhost/DoAn_ChuyenNganh/FrontendAdmin/index.php
+1: http://localhost/DoAn_ChuyenNganh/FrontendAdmin/lehoi.php: Lượt xem không hoạt động.
+2: http://localhost/DoAn_ChuyenNganh/FrontendAdmin/hoctiengkhmer.php: csdl không hoạt động, không truy select, insert gì được cả.
+3: http://localhost/DoAn_ChuyenNganh/FrontendAdmin/nguoidung.php: lỗi hiện thị trùng lặp người dùng 2 lần. 
+4: http://localhost/DoAn_ChuyenNganh/FrontendAdmin/binhluan.php: chức năng này sẻ có chức năng kiểm diệt bình luận, Đã duyệt (bình luận được hiển thị)Chờ duyệt (bình luận chưa đủ điều kiện hiển thị) Spam (thông báo đỏ, để người dùng tự xóa bình luận (với điều kiện không xóa thì admin sẻ có quyền khóa tài khoản người dùng spam bình luận)).

@@ -21,18 +21,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         switch($action) {
             case 'add':
                 // Xử lý upload ảnh
-                $anh_dai_dien = '';
-                if(isset($_FILES['anh_dai_dien']) && $_FILES['anh_dai_dien']['error'] !== UPLOAD_ERR_NO_FILE) {
+                $hinh_anh_chinh = '';
+                
+                // Debug: Log thông tin file upload
+                error_log("=== CHUA UPLOAD DEBUG ===");
+                error_log("FILES: " . print_r($_FILES, true));
+                
+                if(isset($_FILES['hinh_anh_chinh']) && $_FILES['hinh_anh_chinh']['error'] !== UPLOAD_ERR_NO_FILE) {
+                    error_log("Bắt đầu upload ảnh chùa");
                     $uploader = new ImageUploader('chua');
-                    $anh_dai_dien = $uploader->upload($_FILES['anh_dai_dien']);
-                    if (!$anh_dai_dien) {
-                        throw new Exception('Lỗi upload ảnh: ' . $uploader->getErrorString());
+                    $hinh_anh_chinh = $uploader->upload($_FILES['hinh_anh_chinh']);
+                    
+                    error_log("Kết quả upload: " . var_export($hinh_anh_chinh, true));
+                    
+                    if (!$hinh_anh_chinh) {
+                        $errorMsg = $uploader->getErrorString();
+                        error_log("Lỗi upload: " . $errorMsg);
+                        throw new Exception('Lỗi upload ảnh: ' . $errorMsg);
                     }
+                    
+                    error_log("Upload thành công: " . $hinh_anh_chinh);
+                } else {
+                    error_log("Không có file upload hoặc error: " . ($_FILES['hinh_anh_chinh']['error'] ?? 'không tồn tại'));
                 }
+                error_log("=== END DEBUG ===");
                 
                 $data = [
                     'ten_chua' => $_POST['ten_chua'],
-                    'ten_chua_khmer' => $_POST['ten_chua_khmer'] ?? '',
+                    'ten_tieng_khmer' => $_POST['ten_chua_khmer'] ?? '',
                     'dia_chi' => $_POST['dia_chi'] ?? '',
                     'tinh_thanh' => $_POST['tinh_thanh'] ?? '',
                     'quan_huyen' => $_POST['quan_huyen'] ?? '',
@@ -40,12 +56,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'so_dien_thoai' => $_POST['so_dien_thoai'] ?? '',
                     'email' => $_POST['email'] ?? '',
                     'website' => $_POST['website'] ?? '',
-                    'mo_ta' => $_POST['mo_ta'] ?? '',
+                    'mo_ta_ngan' => $_POST['mo_ta'] ?? '',
                     'lich_su' => $_POST['lich_su'] ?? '',
-                    'anh_dai_dien' => $anh_dai_dien,
+                    'hinh_anh_chinh' => $hinh_anh_chinh ?: null, // NULL nếu không có ảnh
                     'nam_thanh_lap' => !empty($_POST['nam_thanh_lap']) ? (int)$_POST['nam_thanh_lap'] : null,
-                    'so_luong_nha_su' => !empty($_POST['so_luong_nha_su']) ? (int)$_POST['so_luong_nha_su'] : 0,
-                    'trang_thai' => $_POST['trang_thai'] ?? 'hoat_dong'
+                    'so_nha_su' => !empty($_POST['so_luong_nha_su']) ? (int)$_POST['so_luong_nha_su'] : 0,
+                    'trang_thai' => $_POST['trang_thai'] ?? 'hoat_dong',
+                    'kinh_do' => !empty($_POST['kinh_do']) ? (float)$_POST['kinh_do'] : null,
+                    'vi_do' => !empty($_POST['vi_do']) ? (float)$_POST['vi_do'] : null
                 ];
                 
                 if($chuaModel->create($data)) {
@@ -61,18 +79,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'edit':
                 // Lấy thông tin chùa hiện tại
                 $currentTemple = $chuaModel->getById($_POST['ma_chua']);
-                $anh_dai_dien = $currentTemple['anh_dai_dien'] ?? '';
+                $hinh_anh_chinh = $currentTemple['hinh_anh_chinh'] ?? '';
                 
                 // Xử lý upload ảnh mới
-                if (isset($_FILES['anh_dai_dien']) && $_FILES['anh_dai_dien']['error'] !== UPLOAD_ERR_NO_FILE) {
+                if (isset($_FILES['hinh_anh_chinh']) && $_FILES['hinh_anh_chinh']['error'] !== UPLOAD_ERR_NO_FILE) {
                     $uploader = new ImageUploader('chua');
-                    $newImagePath = $uploader->upload($_FILES['anh_dai_dien']);
+                    $newImagePath = $uploader->upload($_FILES['hinh_anh_chinh']);
                     if ($newImagePath) {
                         // Xóa ảnh cũ nếu có
-                        if ($anh_dai_dien && file_exists(__DIR__ . '/' . $anh_dai_dien)) {
-                            @unlink(__DIR__ . '/' . $anh_dai_dien);
+                        if ($hinh_anh_chinh && file_exists(__DIR__ . '/../' . $hinh_anh_chinh)) {
+                            @unlink(__DIR__ . '/../' . $hinh_anh_chinh);
                         }
-                        $anh_dai_dien = $newImagePath;
+                        $hinh_anh_chinh = $newImagePath;
                     } else {
                         throw new Exception('Lỗi upload ảnh: ' . $uploader->getErrorString());
                     }
@@ -80,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $data = [
                     'ten_chua' => $_POST['ten_chua'],
-                    'ten_chua_khmer' => $_POST['ten_chua_khmer'] ?? '',
+                    'ten_tieng_khmer' => $_POST['ten_chua_khmer'] ?? '',
                     'dia_chi' => $_POST['dia_chi'] ?? '',
                     'tinh_thanh' => $_POST['tinh_thanh'] ?? '',
                     'quan_huyen' => $_POST['quan_huyen'] ?? '',
@@ -88,13 +106,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'so_dien_thoai' => $_POST['so_dien_thoai'] ?? '',
                     'email' => $_POST['email'] ?? '',
                     'website' => $_POST['website'] ?? '',
-                    'mo_ta' => $_POST['mo_ta'] ?? '',
+                    'mo_ta_ngan' => $_POST['mo_ta'] ?? '',
                     'lich_su' => $_POST['lich_su'] ?? '',
-                    'anh_dai_dien' => $anh_dai_dien,
                     'nam_thanh_lap' => $_POST['nam_thanh_lap'] ?? null,
-                    'so_luong_nha_su' => $_POST['so_luong_nha_su'] ?? 0,
-                    'trang_thai' => $_POST['trang_thai'] ?? 'hoat_dong'
+                    'so_nha_su' => $_POST['so_luong_nha_su'] ?? 0,
+                    'trang_thai' => $_POST['trang_thai'] ?? 'hoat_dong',
+                    'kinh_do' => !empty($_POST['kinh_do']) ? (float)$_POST['kinh_do'] : null,
+                    'vi_do' => !empty($_POST['vi_do']) ? (float)$_POST['vi_do'] : null
                 ];
+                
+                // Chỉ cập nhật hinh_anh_chinh nếu có giá trị (để tránh ghi đè thành NULL)
+                if (!empty($hinh_anh_chinh)) {
+                    $data['hinh_anh_chinh'] = $hinh_anh_chinh;
+                }
                 if($chuaModel->update($_POST['ma_chua'], $data)) {
                     $_SESSION['flash_message'] = 'Cập nhật thông tin chùa thành công!';
                     $_SESSION['flash_type'] = 'success';
@@ -108,8 +132,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'delete':
                 // Lấy thông tin chùa để xóa ảnh
                 $temple = $chuaModel->getById($_POST['ma_chua']);
-                if ($temple && $temple['anh_dai_dien'] && file_exists(__DIR__ . '/' . $temple['anh_dai_dien'])) {
-                    @unlink(__DIR__ . '/' . $temple['anh_dai_dien']);
+                if ($temple && $temple['hinh_anh_chinh'] && file_exists(__DIR__ . '/../' . $temple['hinh_anh_chinh'])) {
+                    @unlink(__DIR__ . '/../' . $temple['hinh_anh_chinh']);
                 }
                 
                 if($chuaModel->delete($_POST['ma_chua'])) {
@@ -136,13 +160,15 @@ $messageType = $_SESSION['flash_type'] ?? '';
 unset($_SESSION['flash_message'], $_SESSION['flash_type']);
 
 // Lấy danh sách chùa
-$temples = $chuaModel->getAll(100);
+$templesRaw = $chuaModel->getAll(100);
 
-// Format ngày tạo
-foreach($temples as &$temple) {
+// Format ngày tạo - KHÔNG dùng reference để tránh side effect
+$temples = [];
+foreach($templesRaw as $temple) {
     if(isset($temple['ngay_tao'])) {
         $temple['ngay_tao_fmt'] = date('d/m/Y H:i', strtotime($temple['ngay_tao']));
     }
+    $temples[] = $temple;
 }
 
 // Lấy danh sách tỉnh thành
@@ -702,6 +728,16 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     font-size:1.15rem;
     transition:transform 0.3s ease;
 }
+.btn-quiz-link {
+    background:var(--white);
+    color:#8b5cf6;
+    box-shadow:0 2px 8px rgba(139,92,246,0.15);
+}
+.btn-quiz-link:hover {
+    background:linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+    color:var(--white);
+    box-shadow:0 8px 24px rgba(139,92,246,0.3);
+}
 .btn-add-new:hover i {
     transform:rotate(90deg) scale(1.3);
 }
@@ -841,6 +877,7 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     max-width:90%;
     max-height:90vh;
     overflow-y:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,0.3);
 }
 .modal-header {
     display:flex;
@@ -851,6 +888,21 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
 .modal-header h3 {
     font-size:1.5rem;
     font-weight:800;
+    color:var(--dark);
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+.modal-header h3 i {
+    width:40px;
+    height:40px;
+    background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--white);
+    font-size:1.2rem;
 }
 .modal-close {
     width:36px;
@@ -884,6 +936,17 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     font-weight:700;
     font-size:0.95rem;
     color:var(--dark);
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+.form-group label i {
+    font-size:1rem;
+    color:var(--primary);
+}
+.form-group label .required {
+    color:var(--danger);
+    margin-left:2px;
 }
 .form-group input,
 .form-group select,
@@ -893,6 +956,19 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     border-radius:12px;
     font-size:0.95rem;
     transition:all 0.3s ease;
+    background:var(--white);
+}
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+    color:#a0aec0;
+    font-weight:400;
+}
+.form-group select {
+    appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236366f1' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 16px center;
+    padding-right:40px;
 }
 .form-group textarea {
     min-height:200px;
@@ -912,18 +988,25 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     margin-top:24px;
 }
 .btn-submit {
-    padding:12px 32px;
-    background:var(--gradient-temple);
+    padding:14px 36px;
+    background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color:var(--white);
     border:none;
     border-radius:12px;
     font-weight:700;
+    font-size:1rem;
     cursor:pointer;
     transition:all 0.3s ease;
+    display:flex;
+    align-items:center;
+    gap:8px;
 }
 .btn-submit:hover {
     transform:translateY(-2px);
-    box-shadow:var(--shadow-lg);
+    box-shadow:0 8px 24px rgba(102,126,234,0.4);
+}
+.btn-submit i {
+    font-size:1.1rem;
 }
 .btn-cancel {
     padding:12px 32px;
@@ -933,6 +1016,56 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     border-radius:12px;
     font-weight:700;
     cursor:pointer;
+}
+
+/* HTML Editor Toolbar */
+.html-editor-toolbar {
+    background:var(--gray-light);
+    padding:10px 14px;
+    border-radius:12px 12px 0 0;
+    border:2px solid var(--gray-light);
+    border-bottom:none;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+}
+.editor-btn {
+    width:40px;
+    height:40px;
+    border:none;
+    background:var(--white);
+    border-radius:8px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:1rem;
+    font-weight:700;
+    color:var(--dark);
+    transition:all 0.2s ease;
+    box-shadow:0 1px 3px rgba(0,0,0,0.1);
+}
+.editor-btn:hover {
+    background:var(--primary);
+    color:var(--white);
+    transform:translateY(-1px);
+    box-shadow:0 4px 8px rgba(99,102,241,0.3);
+}
+.editor-btn:active {
+    transform:translateY(0);
+}
+.editor-btn i {
+    font-size:0.95rem;
+}
+.html-editor-toolbar::before {
+    content:'';
+    display:inline-block;
+    width:2px;
+    height:24px;
+    background:var(--gray);
+    opacity:0.3;
+    margin:0 4px;
 }
 
 /* Toast */
@@ -1030,21 +1163,9 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                     <i class="fas fa-users"></i>
                     <span>Người dùng</span>
                 </div>
-                <div class="menu-item" onclick="location.href='thongbao.php'">
-                    <i class="fas fa-bell"></i>
-                    <span>Thông báo</span>
-                </div>
-                <div class="menu-item" onclick="location.href='tinnhan.php'">
+                <div class="menu-item" onclick="location.href='binhluan.php'">
                     <i class="fas fa-comments"></i>
-                    <span>Tin nhắn</span>
-                </div>
-                <div class="menu-item" onclick="location.href='hoatdong.php'">
-                    <i class="fas fa-history"></i>
-                    <span>Hoạt động</span>
-                </div>
-                <div class="menu-item" onclick="location.href='caidat.php'">
-                    <i class="fas fa-cog"></i>
-                    <span>Cài đặt</span>
+                    <span>Bình luận</span>
                 </div>
             </div>
             <div class="menu-section">
@@ -1117,10 +1238,16 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                             <p>Kho tàng tâm linh - Di sản văn hóa Phật giáo Nam Tông</p>
                         </div>
                     </div>
-                    <button class="btn-add-new" onclick="openAddModal()">
-                        <i class="fas fa-plus-circle"></i>
-                        Thêm chùa mới
-                    </button>
+                    <div style="display: flex; gap: 1rem;">
+                        <a href="quiz-chua.php" class="btn-add-new btn-quiz-link" style="text-decoration: none;">
+                            <i class="fas fa-question-circle"></i>
+                            Quản lý Quiz
+                        </a>
+                        <button class="btn-add-new" onclick="openAddModal()">
+                            <i class="fas fa-plus-circle"></i>
+                            Thêm chùa mới
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1228,8 +1355,8 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                     <table class="data-table" id="templesTable">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Ảnh</th>
+                                <th>STT</th>
+                                <th>Hình Ảnh</th>
                                 <th>Tên chùa</th>
                                 <th>Tên tiếng Khmer</th>
                                 <th>Địa chỉ</th>
@@ -1249,13 +1376,17 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                                 </td>
                             </tr>
                             <?php else: ?>
-                            <?php foreach($temples as $temple): ?>
+                            <?php 
+                            $stt = 0;
+                            foreach($temples as $temple): 
+                            $stt++;
+                            ?>
                             <tr data-province="<?php echo $temple['tinh_thanh'] ?? ''; ?>" 
                                 data-status="<?php echo $temple['trang_thai'] ?? 'hoat_dong'; ?>">
-                                <td>#<?php echo $temple['ma_chua']; ?></td>
+                                <td><?php echo $stt; ?></td>
                                 <td>
                                     <?php if(!empty($temple['hinh_anh_chinh'])): ?>
-                                    <img src="<?php echo htmlspecialchars($temple['hinh_anh_chinh']); ?>" alt="<?php echo htmlspecialchars($temple['ten_chua']); ?>" class="article-image" onerror="this.parentElement.innerHTML='<div class=\'article-image\' style=\'background:var(--gray-light); display:flex; align-items:center; justify-content:center;\'><i class=\'fas fa-place-of-worship\' style=\'color:var(--gray);\'></i></div>'">
+                                    <img src="../<?php echo htmlspecialchars($temple['hinh_anh_chinh']); ?>" alt="<?php echo htmlspecialchars($temple['ten_chua']); ?>" class="article-image" onerror="this.parentElement.innerHTML='<div class=\'article-image\' style=\'background:var(--gray-light); display:flex; align-items:center; justify-content:center;\'><i class=\'fas fa-place-of-worship\' style=\'color:var(--gray);\'></i></div>'">
                                     <?php else: ?>
                                     <div class="article-image" style="background:var(--gray-light); display:flex; align-items:center; justify-content:center;">
                                         <i class="fas fa-place-of-worship" style="color:var(--gray);"></i>
@@ -1265,7 +1396,7 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                                 <td>
                                     <strong><?php echo htmlspecialchars($temple['ten_chua']); ?></strong>
                                 </td>
-                                <td><?php echo htmlspecialchars($temple['ten_chua_khmer'] ?? '-'); ?></td>
+                                <td><?php echo htmlspecialchars($temple['ten_tieng_khmer'] ?? '-'); ?></td>
                                 <td><?php echo htmlspecialchars($temple['dia_chi'] ?? '-'); ?></td>
                                 <td><?php echo htmlspecialchars($temple['tinh_thanh'] ?? '-'); ?></td>
                                 <td>
@@ -1275,7 +1406,7 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                                     switch($temple['trang_thai'] ?? 'hoat_dong') {
                                         case 'hoat_dong':
                                             $status_class = 'published';
-                                            $status_text = 'Hoạt động';
+                                            $status_text = 'Đang hoạt động';
                                             break;
                                         default:
                                             $status_class = 'draft';
@@ -1314,7 +1445,7 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
 <div class="modal" id="addModal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Thêm chùa mới</h3>
+            <h3><i class="fas fa-place-of-worship"></i> Thêm chùa mới</h3>
             <button class="modal-close" onclick="closeAddModal()">
                 <i class="fas fa-times"></i>
             </button>
@@ -1323,71 +1454,93 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
             <input type="hidden" name="action" value="add">
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Tên chùa *</label>
+                    <label><i class="fas fa-place-of-worship"></i> Tên chùa <span class="required">*</span></label>
                     <input type="text" name="ten_chua" required placeholder="Nhập tên chùa">
                 </div>
                 <div class="form-group">
-                    <label>Tên tiếng Khmer</label>
+                    <label><i class="fas fa-language"></i> Tên tiếng Khmer</label>
                     <input type="text" name="ten_chua_khmer" placeholder="ឈ្មោះវត្ត (nếu có)">
                 </div>
                 <div class="form-group full-width">
-                    <label>Địa chỉ</label>
+                    <label><i class="fas fa-map-marker-alt"></i> Địa chỉ</label>
                     <input type="text" name="dia_chi" placeholder="Số nhà, đường, xã/phường">
                 </div>
                 <div class="form-group">
-                    <label>Tỉnh/Thành phố *</label>
+                    <label><i class="fas fa-globe"></i> Kinh độ (Longitude)</label>
+                    <input type="number" step="0.000001" name="kinh_do" placeholder="VD: 105.980000">
+                    <small style="color: #64748b; font-size: 12px;">Tọa độ X để hiển thị trên bản đồ</small>
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-globe"></i> Vĩ độ (Latitude)</label>
+                    <input type="number" step="0.000001" name="vi_do" placeholder="VD: 9.600000">
+                    <small style="color: #64748b; font-size: 12px;">Tọa độ Y để hiển thị trên bản đồ</small>
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-city"></i> Tỉnh/Thành phố <span class="required">*</span></label>
                     <input type="text" name="tinh_thanh" required placeholder="VD: Sóc Trăng">
                 </div>
                 <div class="form-group">
-                    <label>Quận/Huyện</label>
+                    <label><i class="fas fa-map"></i> Quận/Huyện</label>
                     <input type="text" name="quan_huyen" placeholder="Nhập quận/huyện">
                 </div>
                 <div class="form-group">
-                    <label>Loại chùa</label>
+                    <label><i class="fas fa-dharmachakra"></i> Loại chùa</label>
                     <select name="loai_chua">
-                        <option value="Theravada">Theravada (Nam Tông)</option>
-                        <option value="Mahayana">Mahayana (Bắc Tông)</option>
-                        <option value="Vajrayana">Vajrayana (Mật Tông)</option>
+                        <option value="Theravada">🏛️ Theravada (Nam Tông)</option>
+                        <option value="Mahayana">⛩️ Mahayana (Bắc Tông)</option>
+                        <option value="Vajrayana">🕉️ Vajrayana (Mật Tông)</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Trạng thái</label>
+                    <label><i class="fas fa-toggle-on"></i> Trạng thái</label>
                     <select name="trang_thai">
-                        <option value="hoat_dong">Đang hoạt động</option>
-                        <option value="ngung_hoat_dong">Ngừng hoạt động</option>
+                        <option value="hoat_dong">✅ Đang hoạt động</option>
+                        <option value="ngung_hoat_dong">⏸️ Ngừng hoạt động</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Số điện thoại</label>
+                    <label><i class="fas fa-phone"></i> Số điện thoại</label>
                     <input type="tel" name="so_dien_thoai" placeholder="0xxx xxx xxx">
                 </div>
                 <div class="form-group">
-                    <label>Email</label>
+                    <label><i class="fas fa-envelope"></i> Email</label>
                     <input type="email" name="email" placeholder="contact@chua.com">
                 </div>
                 <div class="form-group">
-                    <label>Website</label>
+                    <label><i class="fas fa-link"></i> Website</label>
                     <input type="url" name="website" placeholder="https://chua.com">
                 </div>
                 <div class="form-group">
-                    <label>Năm thành lập</label>
+                    <label><i class="fas fa-calendar-alt"></i> Năm thành lập</label>
                     <input type="number" name="nam_thanh_lap" placeholder="VD: 1850" min="1000" max="<?php echo date('Y'); ?>">
                 </div>
                 <div class="form-group">
-                    <label>Số lượng nhà sư</label>
+                    <label><i class="fas fa-users"></i> Số lượng nhà sư</label>
                     <input type="number" name="so_luong_nha_su" placeholder="0" min="0" value="0">
                 </div>
                 <div class="form-group full-width">
-                    <label>Ảnh đại diện</label>
-                    <input type="file" name="anh_dai_dien" accept="image/*" onchange="previewImage(this, 'addPreview')">
+                    <label><i class="fas fa-image"></i> Ảnh đại diện</label>
+                    <input type="file" name="hinh_anh_chinh" accept="image/*" onchange="previewImage(this, 'addPreview')">
                     <div id="addPreview" style="margin-top:12px;"></div>
                 </div>
                 <div class="form-group full-width">
-                    <label>Mô tả ngắn</label>
-                    <textarea name="mo_ta" rows="3" placeholder="Mô tả ngắn gọn về chùa"></textarea>
+                    <label><i class="fas fa-file-code" style="color: var(--primary); margin-right: 6px;"></i>Mô tả ngắn <small style="color: var(--gray); font-weight: 400;">(hỗ trợ HTML)</small></label>
+                    <div class="html-editor-toolbar">
+                        <button type="button" class="editor-btn" onclick="insertTag('add_mo_ta', 'b')" title="In đậm"><i class="fas fa-bold"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_mo_ta', 'i')" title="In nghiêng"><i class="fas fa-italic"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_mo_ta', 'u')" title="Gạch chân"><i class="fas fa-underline"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_mo_ta', 'h2')" title="Tiêu đề 2">H2</button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_mo_ta', 'h3')" title="Tiêu đề 3">H3</button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_mo_ta', 'p')" title="Đoạn văn"><i class="fas fa-paragraph"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_mo_ta', 'ul')" title="Danh sách"><i class="fas fa-list-ul"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_mo_ta', 'ol')" title="Danh sách số"><i class="fas fa-list-ol"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_mo_ta', 'a')" title="Link"><i class="fas fa-link"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertImage('add_mo_ta')" title="Chèn ảnh"><i class="fas fa-image"></i></button>
+                    </div>
+                    <textarea name="mo_ta" id="add_mo_ta" rows="3" placeholder="Mô tả ngắn gọn về chùa..." style="border-radius: 0 0 12px 12px; font-family: 'Consolas', monospace; font-size: 0.9rem;"></textarea>
                 </div>
                 <div class="form-group full-width">
-                    <label>Lịch sử</label>
+                    <label><i class="fas fa-history"></i> Lịch sử</label>
                     <textarea name="lich_su" rows="4" placeholder="Lịch sử hình thành và phát triển"></textarea>
                 </div>
             </div>
@@ -1425,6 +1578,16 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                 <div class="form-group full-width">
                     <label>Địa chỉ</label>
                     <input type="text" name="dia_chi" id="edit_dia_chi">
+                </div>
+                <div class="form-group">
+                    <label>Kinh độ (Longitude)</label>
+                    <input type="number" step="0.000001" name="kinh_do" id="edit_kinh_do" placeholder="VD: 105.980000">
+                    <small style="color: #64748b; font-size: 12px;">Tọa độ X để hiển thị trên bản đồ</small>
+                </div>
+                <div class="form-group">
+                    <label>Vĩ độ (Latitude)</label>
+                    <input type="number" step="0.000001" name="vi_do" id="edit_vi_do" placeholder="VD: 9.600000">
+                    <small style="color: #64748b; font-size: 12px;">Tọa độ Y để hiển thị trên bản đồ</small>
                 </div>
                 <div class="form-group">
                     <label>Tỉnh/Thành phố *</label>
@@ -1467,13 +1630,25 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                 </div>
                 <div class="form-group full-width">
                     <label>Ảnh đại diện</label>
-                    <input type="file" name="anh_dai_dien" accept="image/*" onchange="previewImage(this, 'editPreview')">
+                    <input type="file" name="hinh_anh_chinh" accept="image/*" onchange="previewImage(this, 'editPreview')">
                     <div id="editPreview" style="margin-top:12px;"></div>
-                    <input type="hidden" name="anh_dai_dien_cu" id="edit_anh_dai_dien_cu">
+                    <input type="hidden" name="hinh_anh_chinh_cu" id="edit_hinh_anh_chinh_cu">
                 </div>
                 <div class="form-group full-width">
-                    <label>Mô tả ngắn</label>
-                    <textarea name="mo_ta" id="edit_mo_ta" rows="3"></textarea>
+                    <label><i class="fas fa-file-code" style="color: var(--primary); margin-right: 6px;"></i>Mô tả ngắn <small style="color: var(--gray); font-weight: 400;">(hỗ trợ HTML)</small></label>
+                    <div class="html-editor-toolbar">
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_mo_ta', 'b')" title="In đậm"><i class="fas fa-bold"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_mo_ta', 'i')" title="In nghiêng"><i class="fas fa-italic"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_mo_ta', 'u')" title="Gạch chân"><i class="fas fa-underline"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_mo_ta', 'h2')" title="Tiêu đề 2">H2</button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_mo_ta', 'h3')" title="Tiêu đề 3">H3</button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_mo_ta', 'p')" title="Đoạn văn"><i class="fas fa-paragraph"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_mo_ta', 'ul')" title="Danh sách"><i class="fas fa-list-ul"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_mo_ta', 'ol')" title="Danh sách số"><i class="fas fa-list-ol"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_mo_ta', 'a')" title="Link"><i class="fas fa-link"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertImage('edit_mo_ta')" title="Chèn ảnh"><i class="fas fa-image"></i></button>
+                    </div>
+                    <textarea name="mo_ta" id="edit_mo_ta" rows="3" style="border-radius: 0 0 12px 12px; font-family: 'Consolas', monospace; font-size: 0.9rem;"></textarea>
                 </div>
                 <div class="form-group full-width">
                     <label>Lịch sử</label>
@@ -1544,8 +1719,10 @@ function closeDeleteModal() {
 function editTemple(temple) {
     document.getElementById('edit_ma_chua').value = temple.ma_chua;
     document.getElementById('edit_ten_chua').value = temple.ten_chua;
-    document.getElementById('edit_ten_chua_khmer').value = temple.ten_chua_khmer || '';
+    document.getElementById('edit_ten_chua_khmer').value = temple.ten_tieng_khmer || '';
     document.getElementById('edit_dia_chi').value = temple.dia_chi || '';
+    document.getElementById('edit_kinh_do').value = temple.kinh_do || '';
+    document.getElementById('edit_vi_do').value = temple.vi_do || '';
     document.getElementById('edit_tinh_thanh').value = temple.tinh_thanh || '';
     document.getElementById('edit_quan_huyen').value = temple.quan_huyen || '';
     document.getElementById('edit_loai_chua').value = temple.loai_chua || 'Theravada';
@@ -1554,8 +1731,8 @@ function editTemple(temple) {
     document.getElementById('edit_email').value = temple.email || '';
     document.getElementById('edit_website').value = temple.website || '';
     document.getElementById('edit_nam_thanh_lap').value = temple.nam_thanh_lap || '';
-    document.getElementById('edit_anh_dai_dien_cu').value = temple.anh_dai_dien || '';
-    document.getElementById('edit_mo_ta').value = temple.mo_ta || '';
+    document.getElementById('edit_hinh_anh_chinh_cu').value = temple.hinh_anh_chinh || '';
+    document.getElementById('edit_mo_ta').value = temple.mo_ta_ngan || '';
     document.getElementById('edit_lich_su').value = temple.lich_su || '';
     
     // Show current image if exists
@@ -1564,7 +1741,7 @@ function editTemple(temple) {
         editPreview.innerHTML = `
             <div style="margin-top:12px;">
                 <label style="display:block; margin-bottom:8px; font-weight:600; color:var(--gray);">Ảnh hiện tại:</label>
-                <img src="${temple.hinh_anh_chinh}" style="max-width:200px; max-height:200px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.1); object-fit:cover;" onerror="this.parentElement.innerHTML='<div style=&quot;padding:20px; background:var(--gray-light); border-radius:12px; text-align:center;&quot;><i class=&quot;fas fa-image-slash&quot; style=&quot;color:var(--gray); font-size:2rem;&quot;></i><br><span style=&quot;color:var(--gray);&quot;>Ảnh không tồn tại</span></div>'">
+                <img src="../${temple.hinh_anh_chinh}" style="max-width:200px; max-height:200px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.1); object-fit:cover;" onerror="this.parentElement.innerHTML='<div style=&quot;padding:20px; background:var(--gray-light); border-radius:12px; text-align:center;&quot;><i class=&quot;fas fa-image-slash&quot; style=&quot;color:var(--gray); font-size:2rem;&quot;></i><br><span style=&quot;color:var(--gray);&quot;>Ảnh không tồn tại</span></div>'">
             </div>
         `;
     } else {
@@ -1666,6 +1843,45 @@ function toggleMessages(e) {
 
 function toggleProfileMenu() {
     alert('Chức năng menu profile đang được phát triển');
+}
+
+// HTML Editor Functions
+function insertTag(textareaId, tag) {
+    const textarea = document.getElementById(textareaId);
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end);
+    
+    if (tag === 'ul' || tag === 'ol') {
+        const listHtml = `<${tag}>\n  <li>Mục 1</li>\n  <li>Mục 2</li>\n  <li>Mục 3</li>\n</${tag}>`;
+        textarea.value = textarea.value.substring(0, start) + listHtml + textarea.value.substring(end);
+        textarea.focus();
+    } else if (tag === 'a') {
+        const url = prompt('Nhập URL:', 'https://');
+        if (url) {
+            const linkText = selectedText || 'Văn bản liên kết';
+            const linkHtml = `<a href="${url}" target="_blank">${linkText}</a>`;
+            textarea.value = textarea.value.substring(0, start) + linkHtml + textarea.value.substring(end);
+            textarea.focus();
+        }
+    } else {
+        const replacement = `<${tag}>${selectedText}</${tag}>`;
+        textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+        textarea.focus();
+        textarea.setSelectionRange(start + tag.length + 2, start + tag.length + 2 + selectedText.length);
+    }
+}
+
+function insertImage(textareaId) {
+    const url = prompt('Nhập URL hình ảnh:', 'https://');
+    if (url) {
+        const alt = prompt('Nhập mô tả hình ảnh:', 'Hình ảnh');
+        const textarea = document.getElementById(textareaId);
+        const start = textarea.selectionStart;
+        const imgHtml = `<img src="${url}" alt="${alt}" style="max-width: 100%;">`;
+        textarea.value = textarea.value.substring(0, start) + imgHtml + textarea.value.substring(start);
+        textarea.focus();
+    }
 }
 </script>
 

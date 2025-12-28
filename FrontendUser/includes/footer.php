@@ -1,276 +1,285 @@
-    <!-- Footer -->
-    <footer class="footer" style="background: linear-gradient(135deg, #1f2937 0%, #111827 100%); color: white; padding: 60px 0 0;">
-        <div class="container">
-            <div class="footer-content" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.5fr; gap: 48px; padding-bottom: 48px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                <!-- About -->
-                <div class="footer-section">
-                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-                        <i class="fas fa-dharmachakra" style="font-size: 32px; background: linear-gradient(135deg, var(--primary), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"></i>
-                        <h4 style="font-size: 24px; font-weight: 800; font-family: 'Plus Jakarta Sans', sans-serif; margin: 0; background: linear-gradient(135deg, var(--primary), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; white-space: nowrap;">Khmer Nam Bộ</h4>
+<style>
+/* ===== Footer Redesign ===== */
+.footer-new {
+    background: #ffffff;
+    color: #1e293b;
+    position: relative;
+    overflow: hidden;
+    border-top: 2px solid #e2e8f0;
+}
+
+.footer-main {
+    padding: 60px 0 40px;
+    position: relative;
+    z-index: 1;
+}
+
+.footer-grid-new {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 3rem;
+}
+
+.footer-brand-new {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: #000000;
+    margin-bottom: 1.25rem;
+}
+
+.footer-brand-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: white;
+}
+</style>
+<style>
+.footer-desc-new {
+    color: #1e293b;
+    line-height: 1.7;
+    margin-bottom: 1.5rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.footer-social-new {
+    display: flex;
+    gap: 12px;
+}
+
+.footer-social-new a {
+    width: 42px;
+    height: 42px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    font-size: 1.125rem;
+    transition: all 0.3s ease;
+    border: 2px solid #e2e8f0;
+}
+
+.footer-social-new a:hover {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    transform: translateY(-3px);
+    border-color: transparent;
+}
+
+.footer-title-new {
+    color: #000000;
+    font-size: 1.125rem;
+    font-weight: 900;
+    margin-bottom: 1.5rem;
+    position: relative;
+    padding-bottom: 12px;
+}
+
+.footer-title-new::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 40px;
+    height: 3px;
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    border-radius: 2px;
+}
+
+.footer-links-new {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.footer-links-new a {
+    color: #1e293b;
+    text-decoration: none;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.footer-links-new a::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: #cbd5e1;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.footer-links-new a:hover {
+    color: #667eea;
+    padding-left: 8px;
+}
+
+.footer-links-new a:hover::before {
+    background: #667eea;
+}
+</style>
+<style>
+.footer-bottom-new {
+    border-top: 1px solid #e2e8f0;
+    padding: 24px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.footer-copyright {
+    color: #1e293b;
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.footer-copyright span {
+    color: #667eea;
+    font-weight: 700;
+}
+
+.footer-author {
+    color: #1e293b;
+    font-size: 0.875rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.footer-author i {
+    color: #f43f5e;
+}
+
+.footer-author span {
+    color: #000000;
+    font-weight: 900;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .footer-grid-new {
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .footer-grid-new {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+        text-align: center;
+    }
+    
+    .footer-brand-new {
+        justify-content: center;
+    }
+    
+    .footer-social-new {
+        justify-content: center;
+    }
+    
+    .footer-title-new::after {
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    
+    .footer-links-new a {
+        justify-content: center;
+    }
+    
+    .footer-bottom-new {
+        flex-direction: column;
+        text-align: center;
+    }
+}
+</style>
+
+<footer class="footer-new">
+    <div class="container">
+        <div class="footer-main">
+            <div class="footer-grid-new">
+                <!-- Brand -->
+                <div>
+                    <div class="footer-brand-new">
+                        <div class="footer-brand-icon">
+                            <i class="fas fa-dharmachakra"></i>
+                        </div>
+                        <?= __('site_name') ?>
                     </div>
-                    <p style="margin-bottom: 20px; line-height: 1.7; color: rgba(255,255,255,0.7); font-size: 15px;">
-                        Nền tảng bảo tồn và phát triển văn hóa Khmer Nam Bộ, 
-                        kết nối cộng đồng và lan tỏa giá trị truyền thống.
+                    <p class="footer-desc-new">
+                        <?= __('footer_desc') ?>
                     </p>
-                    <div class="social-links" style="display: flex; gap: 12px;">
-                        <a href="#" class="social-link" aria-label="Facebook" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.1); border-radius: 12px; color: white; transition: var(--transition-base); font-size: 18px;">
-                            <i class="fab fa-facebook-f"></i>
-                        </a>
-                        <a href="#" class="social-link" aria-label="YouTube" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.1); border-radius: 12px; color: white; transition: var(--transition-base); font-size: 18px;">
-                            <i class="fab fa-youtube"></i>
-                        </a>
-                        <a href="#" class="social-link" aria-label="Instagram" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.1); border-radius: 12px; color: white; transition: var(--transition-base); font-size: 18px;">
-                            <i class="fab fa-instagram"></i>
-                        </a>
-                        <a href="#" class="social-link" aria-label="TikTok" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.1); border-radius: 12px; color: white; transition: var(--transition-base); font-size: 18px;">
-                            <i class="fab fa-tiktok"></i>
-                        </a>
+                    <div class="footer-social-new">
+                        <a href="#" title="Facebook"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" title="YouTube"><i class="fab fa-youtube"></i></a>
+                        <a href="#" title="Instagram"><i class="fab fa-instagram"></i></a>
+                        <a href="#" title="TikTok"><i class="fab fa-tiktok"></i></a>
                     </div>
                 </div>
                 
                 <!-- Quick Links -->
-                <div class="footer-section">
-                    <h4 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: white; white-space: nowrap;">Liên kết nhanh</h4>
-                    <ul class="footer-links" style="list-style: none;">
-                        <li style="margin-bottom: 12px;"><a href="index.php" style="display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); transition: var(--transition-base); font-size: 15px;"><i class="fas fa-chevron-right" style="font-size: 12px;"></i> <span style="white-space: nowrap;">Trang chủ</span></a></li>
-                        <li style="margin-bottom: 12px;"><a href="van-hoa.php" style="display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); transition: var(--transition-base); font-size: 15px;"><i class="fas fa-chevron-right" style="font-size: 12px;"></i> <span style="white-space: nowrap;">Văn hóa</span></a></li>
-                        <li style="margin-bottom: 12px;"><a href="chua-khmer.php" style="display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); transition: var(--transition-base); font-size: 15px;"><i class="fas fa-chevron-right" style="font-size: 12px;"></i> <span style="white-space: nowrap;">Chùa Khmer</span></a></li>
-                        <li style="margin-bottom: 12px;"><a href="le-hoi.php" style="display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); transition: var(--transition-base); font-size: 15px;"><i class="fas fa-chevron-right" style="font-size: 12px;"></i> <span style="white-space: nowrap;">Lễ hội</span></a></li>
-                        <li style="margin-bottom: 12px;"><a href="hoc-tieng-khmer.php" style="display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); transition: var(--transition-base); font-size: 15px;"><i class="fas fa-chevron-right" style="font-size: 12px;"></i> <span style="white-space: nowrap;">Học tiếng Khmer</span></a></li>
-                    </ul>
+                <div>
+                    <h4 class="footer-title-new"><?= __('footer_explore') ?></h4>
+                    <div class="footer-links-new">
+                        <a href="<?= BASE_URL ?>/van-hoa.php"><?= __('nav_culture') ?></a>
+                        <a href="<?= BASE_URL ?>/chua-khmer.php"><?= __('nav_temples') ?></a>
+                        <a href="<?= BASE_URL ?>/le-hoi.php"><?= __('nav_festivals') ?></a>
+                        <a href="<?= BASE_URL ?>/truyen-dan-gian.php"><?= __('nav_stories') ?></a>
+                    </div>
                 </div>
                 
-                <!-- Resources -->
-                <div class="footer-section">
-                    <h4 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: white; white-space: nowrap;">Tài nguyên</h4>
-                    <ul class="footer-links" style="list-style: none;">
-                        <li style="margin-bottom: 12px;"><a href="truyen-dan-gian.php" style="display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); transition: var(--transition-base); font-size: 15px;"><i class="fas fa-chevron-right" style="font-size: 12px;"></i> <span style="white-space: nowrap;">Truyện dân gian</span></a></li>
-                        <li style="margin-bottom: 12px;"><a href="profile.php" style="display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); transition: var(--transition-base); font-size: 15px;"><i class="fas fa-chevron-right" style="font-size: 12px;"></i> <span style="white-space: nowrap;">Trang cá nhân</span></a></li>
-                        <li style="margin-bottom: 12px;"><a href="#" style="display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); transition: var(--transition-base); font-size: 15px;"><i class="fas fa-chevron-right" style="font-size: 12px;"></i> <span style="white-space: nowrap;">Bản đồ di sản</span></a></li>
-                        <li style="margin-bottom: 12px;"><a href="#" style="display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); transition: var(--transition-base); font-size: 15px;"><i class="fas fa-chevron-right" style="font-size: 12px;"></i> <span style="white-space: nowrap;">Blog</span></a></li>
-                        <li style="margin-bottom: 12px;"><a href="#" style="display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,0.7); transition: var(--transition-base); font-size: 15px;"><i class="fas fa-chevron-right" style="font-size: 12px;"></i> <span style="white-space: nowrap;">FAQ</span></a></li>
-                    </ul>
+                <!-- Learning -->
+                <div>
+                    <h4 class="footer-title-new"><?= __('footer_learning') ?></h4>
+                    <div class="footer-links-new">
+                        <a href="<?= BASE_URL ?>/hoc-tieng-khmer.php"><?= __('nav_learn') ?></a>
+                        <a href="<?= BASE_URL ?>/leaderboard.php"><?= __('footer_leaderboard') ?></a>
+                        <a href="<?= BASE_URL ?>/ban-do.php"><?= __('nav_map') ?></a>
+                    </div>
                 </div>
                 
-                <!-- Contact -->
-                <div class="footer-section">
-                    <h4 style="font-size: 18px; font-weight: 700; margin-bottom: 20px; color: white; white-space: nowrap;">Liên hệ</h4>
-                    <ul class="footer-links" style="list-style: none;">
-                        <li style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; color: rgba(255,255,255,0.7); font-size: 15px;">
-                            <i class="fas fa-map-marker-alt" style="margin-top: 4px; color: var(--primary);"></i>
-                            <span>Trường Đại học Trà Vinh<br>Trà Vinh, Việt Nam</span>
-                        </li>
-                        <li style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; font-size: 15px;">
-                            <i class="fas fa-phone" style="color: var(--primary);"></i>
-                            <a href="tel:0337048780" style="color: rgba(255,255,255,0.7); transition: var(--transition-base); white-space: nowrap;">0337 048 780</a>
-                        </li>
-                        <li style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; font-size: 15px;">
-                            <i class="fas fa-envelope" style="color: var(--primary);"></i>
-                            <a href="mailto:LamNhatHao@gmail.com" style="color: rgba(255,255,255,0.7); transition: var(--transition-base); white-space: nowrap;">LamNhatHao@gmail.com</a>
-                        </li>
-                        <li style="display: flex; align-items: center; gap: 12px; color: rgba(255,255,255,0.7); font-size: 15px;">
-                            <i class="fas fa-clock" style="color: var(--primary);"></i>
-                            <span style="white-space: nowrap;">T2 - CN: 8:00 - 20:00</span>
-                        </li>
-                    </ul>
+                <!-- Support -->
+                <div>
+                    <h4 class="footer-title-new"><?= __('footer_support') ?></h4>
+                    <div class="footer-links-new">
+                        <a href="#"><?= __('footer_about') ?></a>
+                        <a href="#"><?= __('footer_contact') ?></a>
+                        <a href="#"><?= __('footer_terms') ?></a>
+                        <a href="#"><?= __('footer_privacy') ?></a>
+                    </div>
                 </div>
-            </div>
-            
-            <!-- Footer Bottom -->
-            <div class="footer-bottom" style="text-align: center; padding: 32px 0; color: rgba(255,255,255,0.6);">
-                <p style="font-size: 15px; margin-bottom: 8px;">&copy; <?php echo date('Y'); ?> <span style="white-space: nowrap;">Văn Hóa Khmer Nam Bộ.</span> <span style="white-space: nowrap;">All rights reserved.</span></p>
-                <p style="font-size: 14px; display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;">
-                    <span style="white-space: nowrap;">Developed with</span> <i class="fas fa-heart" style="color: #ec4899; animation: heartbeat 1.5s infinite;"></i> <span style="white-space: nowrap;">by <strong style="color: white; margin-left: 4px;">Lâm Nhật Hào</strong></span>
-                </p>
             </div>
         </div>
-    </footer>
-    
-    <style>
-        .footer .social-link:hover {
-            background: linear-gradient(135deg, var(--primary), #8b5cf6) !important;
-            transform: translateY(-4px);
-        }
         
-        .footer-links a:hover {
-            color: white !important;
-            transform: translateX(4px);
-        }
-        
-        @keyframes heartbeat {
-            0%, 100% { transform: scale(1); }
-            25% { transform: scale(1.2); }
-            50% { transform: scale(1); }
-        }
-        
-        @media (max-width: 1024px) {
-            .footer-content {
-                grid-template-columns: repeat(2, 1fr) !important;
-                gap: 32px !important;
-            }
-        }
-        
-        @media (max-width: 640px) {
-            .footer-content {
-                grid-template-columns: 1fr !important;
-            }
-        }
-    </style>
-    
-    <!-- Back to Top -->
-    <button class="back-to-top" id="backToTop" aria-label="Về đầu trang" style="position: fixed; bottom: 24px; right: 24px; width: 52px; height: 52px; display: none; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--primary), #8b5cf6); color: white; border: none; border-radius: 50%; cursor: pointer; box-shadow: 0 8px 24px rgba(99, 102, 241, 0.4); transition: var(--transition-base); z-index: 997; font-size: 20px;">
-        <i class="fas fa-arrow-up"></i>
-    </button>
-    
-    <style>
-        .back-to-top:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 12px 32px rgba(99, 102, 241, 0.5);
-        }
-    </style>
-    
-    <!-- Main JavaScript -->
-    <script>
-        // Mobile Menu Toggle
-        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
-        const mobileMenu = document.getElementById('mobileMenu');
-        const mobileOverlay = document.getElementById('mobileOverlay');
-        const closeMobileMenu = document.getElementById('closeMobileMenu');
-        
-        if(mobileMenuToggle) {
-            mobileMenuToggle.addEventListener('click', () => {
-                mobileMenu.style.right = '0';
-                mobileOverlay.style.display = 'block';
-                document.body.style.overflow = 'hidden';
-            });
-        }
-        
-        if(closeMobileMenu) {
-            closeMobileMenu.addEventListener('click', closeMobileMenuFunc);
-        }
-        
-        if(mobileOverlay) {
-            mobileOverlay.addEventListener('click', closeMobileMenuFunc);
-        }
-        
-        function closeMobileMenuFunc() {
-            mobileMenu.style.right = '-100%';
-            mobileOverlay.style.display = 'none';
-            document.body.style.overflow = '';
-        }
-        
-        // User Menu Dropdown
-        const userMenuBtn = document.getElementById('userMenuBtn');
-        const userDropdown = document.getElementById('userDropdown');
-        
-        if(userMenuBtn && userDropdown) {
-            userMenuBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isVisible = userDropdown.style.display === 'block';
-                userDropdown.style.display = isVisible ? 'none' : 'block';
-            });
-            
-            document.addEventListener('click', () => {
-                userDropdown.style.display = 'none';
-            });
-            
-            userDropdown.addEventListener('click', (e) => {
-                e.stopPropagation();
-            });
-        }
-        
-        // Search Modal
-        const searchBtn = document.getElementById('searchBtn');
-        const searchModal = document.getElementById('searchModal');
-        const closeSearch = document.getElementById('closeSearch');
-        const searchInput = document.getElementById('searchInput');
-        
-        if(searchBtn) {
-            searchBtn.addEventListener('click', () => {
-                searchModal.style.display = 'block';
-                setTimeout(() => searchInput.focus(), 100);
-            });
-        }
-        
-        if(closeSearch) {
-            closeSearch.addEventListener('click', closeSearchModal);
-        }
-        
-        if(searchModal) {
-            searchModal.addEventListener('click', (e) => {
-                if(e.target === searchModal) {
-                    closeSearchModal();
-                }
-            });
-        }
-        
-        function closeSearchModal() {
-            searchModal.style.display = 'none';
-        }
-        
-        // Search functionality
-        if(searchInput) {
-            let searchTimeout;
-            searchInput.addEventListener('input', (e) => {
-                clearTimeout(searchTimeout);
-                const query = e.target.value.trim();
-                
-                if(query.length < 2) {
-                    document.getElementById('searchResults').style.display = 'none';
-                    return;
-                }
-                
-                searchTimeout = setTimeout(() => {
-                    // TODO: Implement actual search with AJAX
-                    document.getElementById('searchResults').innerHTML = '<div style="padding: 20px; text-align: center; color: var(--gray-500);">Đang tìm kiếm...</div>';
-                    document.getElementById('searchResults').style.display = 'block';
-                }, 300);
-            });
-        }
-        
-        // ESC key to close modals
-        document.addEventListener('keydown', (e) => {
-            if(e.key === 'Escape') {
-                closeSearchModal();
-                closeMobileMenuFunc();
-            }
-        });
-        
-        // Back to Top
-        const backToTop = document.getElementById('backToTop');
-        
-        window.addEventListener('scroll', () => {
-            if(window.scrollY > 300) {
-                backToTop.style.display = 'flex';
-            } else {
-                backToTop.style.display = 'none';
-            }
-        });
-        
-        backToTop.addEventListener('click', () => {
-            window.scrollTo({
-                top: 0,
-                behavior: 'smooth'
-            });
-        });
-        
-        // Navbar scroll effect
-        const navbar = document.querySelector('.navbar');
-        let lastScroll = 0;
-        
-        window.addEventListener('scroll', () => {
-            const currentScroll = window.scrollY;
-            
-            if(currentScroll > 100) {
-                navbar.style.boxShadow = 'var(--shadow-lg)';
-            } else {
-                navbar.style.boxShadow = 'var(--shadow-sm)';
-            }
-            
-            lastScroll = currentScroll;
-        });
-    </script>
-    
-    <script src="assets/js/main.js"></script>
+        <div class="footer-bottom-new">
+            <p class="footer-copyright">
+                <?= date('Y') ?> <span><?= __('site_name') ?></span>.
+            </p>
+            <p class="footer-author">
+                <i class="fas fa-heart"></i><span>Lâm Nhật Hào</span>
+            </p>
+        </div>
+    </div>
+</footer>
+
+<!-- Scripts -->
+<script src="<?= BASE_URL ?>/assets/js/main.js"></script>
 </body>
 </html>

@@ -15,10 +15,9 @@ class VanHoa extends BaseModel {
     protected $primaryKey = 'ma_van_hoa';
     
     protected $fillable = [
-        'tieu_de', 'slug', 'mo_ta_ngan', 'noi_dung', 'hinh_anh',
-        'ma_danh_muc', 'tac_gia', 'trang_thai', 'noi_bat',
-        'ma_nguoi_tao', 'ngay_xuat_ban'
-        // 'ma_nguoi_cap_nhat' - Cột này chưa có trong database
+        'tieu_de', 'tieu_de_khmer', 'slug', 'tom_tat', 'noi_dung', 'hinh_anh_chinh',
+        'thu_vien_anh', 'ma_danh_muc', 'trang_thai',
+        'ma_nguoi_tao'
     ];
     
     // Trạng thái
@@ -110,23 +109,39 @@ class VanHoa extends BaseModel {
     public function getAll($limit = 50, $offset = 0, $orderBy = null, $orderDir = 'DESC') {
         $orderBy = $orderBy ?? 'ngay_tao';
         
-        $sql = "SELECT v.*, d.ten_danh_muc, q.ho_ten as nguoi_tao
+        $sql = "SELECT v.*, q.ho_ten as nguoi_tao
                 FROM `{$this->table}` v
-                LEFT JOIN `danh_muc` d ON v.ma_danh_muc = d.ma_danh_muc
                 LEFT JOIN `quan_tri_vien` q ON v.ma_nguoi_tao = q.ma_qtv
                 ORDER BY v.{$orderBy} {$orderDir}
                 LIMIT ? OFFSET ?";
         
-        return $this->db->query($sql, [$limit, $offset]) ?: [];
+        $articles = $this->db->query($sql, [$limit, $offset]) ?: [];
+        
+        // Lấy danh mục từ database để map
+        $categoriesForMap = $this->db->query("SELECT ma_danh_muc, ten_danh_muc FROM danh_muc WHERE loai = 'van_hoa'") ?: [];
+        $categoryMap = [];
+        foreach($categoriesForMap as $cat) {
+            $categoryMap[$cat['ma_danh_muc']] = $cat['ten_danh_muc'];
+        }
+        
+        // Thêm tên danh mục cho mỗi bài viết
+        foreach($articles as &$article) {
+            if(isset($article['danh_muc']) && isset($categoryMap[$article['danh_muc']])) {
+                $article['ten_danh_muc'] = $categoryMap[$article['danh_muc']];
+            } else {
+                $article['ten_danh_muc'] = 'Chưa phân loại';
+            }
+        }
+        
+        return $articles;
     }
     
     /**
      * Lấy tất cả với filter nâng cao
      */
     public function getAllWithFilters($limit = 50, $offset = 0, $filters = []) {
-        $sql = "SELECT v.*, d.ten_danh_muc, q.ho_ten as nguoi_tao
+        $sql = "SELECT v.*, q.ho_ten as nguoi_tao
                 FROM `{$this->table}` v
-                LEFT JOIN `danh_muc` d ON v.ma_danh_muc = d.ma_danh_muc
                 LEFT JOIN `quan_tri_vien` q ON v.ma_nguoi_tao = q.ma_qtv
                 WHERE 1=1";
         
@@ -142,9 +157,9 @@ class VanHoa extends BaseModel {
         }
         
         // Filter theo danh mục
-        if (!empty($filters['danh_muc'])) {
+        if (!empty($filters['ma_danh_muc'])) {
             $sql .= " AND v.ma_danh_muc = ?";
-            $params[] = $filters['danh_muc'];
+            $params[] = $filters['ma_danh_muc'];
         }
         
         // Filter theo trạng thái
@@ -166,7 +181,25 @@ class VanHoa extends BaseModel {
         $params[] = $limit;
         $params[] = $offset;
         
-        return $this->db->query($sql, $params) ?: [];
+        $articles = $this->db->query($sql, $params) ?: [];
+        
+        // Lấy danh mục từ database để map
+        $categoriesForMap = $this->db->query("SELECT ma_danh_muc, ten_danh_muc FROM danh_muc WHERE loai = 'van_hoa'") ?: [];
+        $categoryMap = [];
+        foreach($categoriesForMap as $cat) {
+            $categoryMap[$cat['ma_danh_muc']] = $cat['ten_danh_muc'];
+        }
+        
+        // Thêm tên danh mục cho mỗi bài viết
+        foreach($articles as &$article) {
+            if(isset($article['danh_muc']) && isset($categoryMap[$article['danh_muc']])) {
+                $article['ten_danh_muc'] = $categoryMap[$article['danh_muc']];
+            } else {
+                $article['ten_danh_muc'] = 'Chưa phân loại';
+            }
+        }
+        
+        return $articles;
     }
     
     /**

@@ -20,16 +20,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         switch($action) {
             case 'add':
                 $data = [
-                    'ma_danh_muc' => $_POST['ma_danh_muc'] ?? null,
-                    'tieu_de' => $_POST['tieu_de'],
-                    'mo_ta' => $_POST['mo_ta'] ?? '',
+                    'ma_danh_muc' => !empty($_POST['ma_danh_muc']) ? (int)$_POST['ma_danh_muc'] : null,
+                    'tieu_de' => trim($_POST['tieu_de']),
+                    'mo_ta' => trim($_POST['mo_ta'] ?? ''),
                     'noi_dung' => $_POST['noi_dung'] ?? '',
                     'cap_do' => $_POST['cap_do'] ?? 'co_ban',
-                    'thu_tu' => $_POST['thu_tu'] ?? 0,
-                    'thoi_luong' => $_POST['thoi_luong'] ?? 30,
-                    'trang_thai' => $_POST['trang_thai'] ?? 'xuat_ban',
+                    'thu_tu' => (int)($_POST['thu_tu'] ?? 0),
+                    'thoi_luong' => (int)($_POST['thoi_luong'] ?? 30),
+                    'diem_thuong' => (int)($_POST['diem_thuong'] ?? 20),
+                    'video_url' => trim($_POST['video_url'] ?? ''),
+                    'trang_thai' => 'xuat_ban', // Sửa: dùng 'xuat_ban' thay vì 'hien_thi'
                 ];
-                if($baiHocModel->create($data)) {
+                
+                // Debug: Log data
+                error_log("=== THÊM BÀI HỌC ===");
+                error_log("Data: " . json_encode($data));
+                
+                // Xử lý upload hình ảnh
+                if(isset($_FILES['hinh_anh']) && $_FILES['hinh_anh']['error'] === 0) {
+                    $upload_dir = '../uploads/lessons/';
+                    if(!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+                    $file_ext = pathinfo($_FILES['hinh_anh']['name'], PATHINFO_EXTENSION);
+                    $file_name = 'lesson_' . time() . '_' . rand(1000, 9999) . '.' . $file_ext;
+                    if(move_uploaded_file($_FILES['hinh_anh']['tmp_name'], $upload_dir . $file_name)) {
+                        $data['hinh_anh'] = $file_name;
+                        error_log("Upload ảnh thành công: " . $file_name);
+                    } else {
+                        error_log("Upload ảnh thất bại");
+                    }
+                }
+                
+                $result = $baiHocModel->create($data);
+                error_log("Kết quả create: " . ($result ? "ID=$result" : "FALSE"));
+                
+                if($result) {
                     $_SESSION['flash_message'] = 'Thêm bài học thành công!';
                     $_SESSION['flash_type'] = 'success';
                 } else {
@@ -41,15 +65,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
             case 'edit':
                 $data = [
-                    'ma_danh_muc' => $_POST['ma_danh_muc'] ?? null,
+                    'ma_danh_muc' => !empty($_POST['ma_danh_muc']) ? $_POST['ma_danh_muc'] : null,
                     'tieu_de' => $_POST['tieu_de'],
                     'mo_ta' => $_POST['mo_ta'] ?? '',
                     'noi_dung' => $_POST['noi_dung'] ?? '',
                     'cap_do' => $_POST['cap_do'] ?? 'co_ban',
                     'thu_tu' => $_POST['thu_tu'] ?? 0,
                     'thoi_luong' => $_POST['thoi_luong'] ?? 30,
-                    'trang_thai' => $_POST['trang_thai'] ?? 'xuat_ban',
+                    'diem_thuong' => $_POST['diem_thuong'] ?? 20,
+                    'video_url' => $_POST['video_url'] ?? '',
+                    'trang_thai' => $_POST['trang_thai'] ?? 'hien_thi',
                 ];
+                
+                // Xử lý upload hình ảnh mới
+                if(isset($_FILES['hinh_anh']) && $_FILES['hinh_anh']['error'] === 0) {
+                    $upload_dir = '../uploads/lessons/';
+                    if(!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+                    $file_ext = pathinfo($_FILES['hinh_anh']['name'], PATHINFO_EXTENSION);
+                    $file_name = 'lesson_' . time() . '_' . rand(1000, 9999) . '.' . $file_ext;
+                    if(move_uploaded_file($_FILES['hinh_anh']['tmp_name'], $upload_dir . $file_name)) {
+                        $data['hinh_anh'] = $file_name;
+                    }
+                }
+                
                 if($baiHocModel->update($_POST['ma_bai_hoc'], $data)) {
                     $_SESSION['flash_message'] = 'Cập nhật bài học thành công!';
                     $_SESSION['flash_type'] = 'success';
@@ -90,12 +128,15 @@ if(!is_array($lessons)) {
     $lessons = [];
 }
 
-// Format ngày tạo
-foreach($lessons as &$lesson) {
+// Format ngày tạo - KHÔNG dùng reference để tránh lỗi
+$processedLessons = [];
+foreach($lessons as $lesson) {
     if(isset($lesson['ngay_tao'])) {
         $lesson['ngay_tao_fmt'] = date('d/m/Y H:i', strtotime($lesson['ngay_tao']));
     }
+    $processedLessons[] = $lesson;
 }
+$lessons = $processedLessons;
 
 // Lấy danh mục
 $categories = $baiHocModel->getCategories();
@@ -731,6 +772,14 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     font-weight:700;
     text-transform:uppercase;
 }
+.status-badge.active {
+    background:rgba(16,185,129,0.1);
+    color:var(--success);
+}
+.status-badge.inactive {
+    background:rgba(245,158,11,0.1);
+    color:var(--warning);
+}
 .status-badge.published {
     background:rgba(16,185,129,0.1);
     color:var(--success);
@@ -738,6 +787,25 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
 .status-badge.draft {
     background:rgba(245,158,11,0.1);
     color:var(--warning);
+}
+.level-badge {
+    padding:6px 12px;
+    border-radius:20px;
+    font-size:0.8rem;
+    font-weight:700;
+    text-transform:uppercase;
+}
+.level-badge.basic {
+    background:rgba(16,185,129,0.1);
+    color:#10b981;
+}
+.level-badge.intermediate {
+    background:rgba(245,158,11,0.1);
+    color:#f59e0b;
+}
+.level-badge.advanced {
+    background:rgba(239,68,68,0.1);
+    color:#ef4444;
 }
 .action-buttons {
     display:flex;
@@ -917,6 +985,54 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     }
 }
 
+/* HTML Editor Toolbar */
+.editor-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: var(--white);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--dark);
+    transition: all 0.2s ease;
+}
+.editor-btn:hover {
+    background: var(--primary);
+    color: var(--white);
+    transform: scale(1.05);
+}
+
+/* Image Upload Area */
+.image-upload-area {
+    border: 2px dashed var(--gray);
+    border-radius: 12px;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--gray-light);
+}
+.image-upload-area:hover {
+    border-color: var(--primary);
+    background: rgba(99, 102, 241, 0.05);
+}
+.image-upload-area.has-image {
+    padding: 10px;
+    border-style: solid;
+    border-color: var(--success);
+}
+.image-preview img {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 8px;
+    object-fit: contain;
+}
+
 /* Responsive */
 @media(max-width:1200px){
     .stats-grid {grid-template-columns:repeat(2, 1fr);}
@@ -984,21 +1100,9 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                     <i class="fas fa-users"></i>
                     <span>Người dùng</span>
                 </div>
-                <div class="menu-item" onclick="location.href='thongbao.php'">
-                    <i class="fas fa-bell"></i>
-                    <span>Thông báo</span>
-                </div>
-                <div class="menu-item" onclick="location.href='tinnhan.php'">
+                <div class="menu-item" onclick="location.href='binhluan.php'">
                     <i class="fas fa-comments"></i>
-                    <span>Tin nhắn</span>
-                </div>
-                <div class="menu-item" onclick="location.href='hoatdong.php'">
-                    <i class="fas fa-history"></i>
-                    <span>Hoạt động</span>
-                </div>
-                <div class="menu-item" onclick="location.href='caidat.php'">
-                    <i class="fas fa-cog"></i>
-                    <span>Cài đặt</span>
+                    <span>Bình luận</span>
                 </div>
             </div>
             <div class="menu-section">
@@ -1186,6 +1290,7 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                         <thead>
                             <tr>
                                 <th>STT</th>
+                                <th>Hình ảnh</th>
                                 <th>Tiêu đề</th>
                                 <th>Danh mục</th>
                                 <th>Cấp độ</th>
@@ -1198,7 +1303,7 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                         <tbody id="lessonsTableBody">
                             <?php if(empty($lessons)): ?>
                             <tr>
-                                <td colspan="8" style="text-align:center; padding:40px; color:var(--gray);">
+                                <td colspan="9" style="text-align:center; padding:40px; color:var(--gray);">
                                     <i class="fas fa-inbox" style="font-size:3rem; margin-bottom:16px; display:block;"></i>
                                     <strong>Chưa có bài học nào</strong>
                                     <p style="margin-top:8px;">Hãy thêm bài học đầu tiên!</p>
@@ -1208,6 +1313,18 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                                 <?php foreach($lessons as $index => $lesson): ?>
                                 <tr data-level="<?php echo $lesson['cap_do']; ?>" data-status="<?php echo $lesson['trang_thai']; ?>">
                                     <td><strong><?php echo $index + 1; ?></strong></td>
+                                    <td>
+                                        <?php if(!empty($lesson['hinh_anh'])): ?>
+                                        <img src="../uploads/lessons/<?php echo htmlspecialchars($lesson['hinh_anh']); ?>" 
+                                             alt="<?php echo htmlspecialchars($lesson['tieu_de']); ?>" 
+                                             class="article-image"
+                                             onerror="this.src='../uploads/default-lesson.jpg'; this.onerror=null;">
+                                        <?php else: ?>
+                                        <div class="article-image" style="background: var(--gray-light); display: flex; align-items: center; justify-content: center;">
+                                            <i class="fas fa-image" style="color: var(--gray); font-size: 1.5rem;"></i>
+                                        </div>
+                                        <?php endif; ?>
+                                    </td>
                                     <td>
                                         <strong><?php echo htmlspecialchars($lesson['tieu_de']); ?></strong>
                                         <?php if(!empty($lesson['mo_ta'])): ?>
@@ -1233,8 +1350,8 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                                         <?php echo $lesson['thoi_luong'] ?? 30; ?> phút
                                     </td>
                                     <td>
-                                        <span class="status-badge <?php echo $lesson['trang_thai'] === 'xuat_ban' ? 'active' : 'inactive'; ?>">
-                                            <?php echo $lesson['trang_thai'] === 'xuat_ban' ? 'Xuất bản' : ($lesson['trang_thai'] === 'nhap' ? 'Nháp' : 'Ẩn'); ?>
+                                        <span class="status-badge <?php echo $lesson['trang_thai'] === 'hien_thi' ? 'active' : 'inactive'; ?>">
+                                            <?php echo $lesson['trang_thai'] === 'hien_thi' ? 'Hiển thị' : 'Ẩn'; ?>
                                         </span>
                                     </td>
                                     <td><?php echo $lesson['ngay_tao_fmt']; ?></td>
@@ -1261,22 +1378,32 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
 
 <!-- ADD MODAL -->
 <div class="modal" id="addModal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 900px;">
         <div class="modal-header">
-            <h3>Thêm bài học mới</h3>
+            <h3><i class="fas fa-plus-circle" style="color: var(--primary);"></i> Thêm bài học mới</h3>
             <button class="modal-close" onclick="closeModal('addModal')">
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <form method="POST" action="">
+        <form method="POST" action="" enctype="multipart/form-data" id="addLessonForm">
             <input type="hidden" name="action" value="add">
+            
             <div class="form-grid">
+                <!-- Tiêu đề bài học -->
                 <div class="form-group full-width">
-                    <label>Tiêu đề bài học <span style="color:red;">*</span></label>
-                    <input type="text" name="tieu_de" required placeholder="VD: Bảng chữ cái Khmer">
+                    <label><i class="fas fa-heading" style="color: var(--primary); margin-right: 6px;"></i>Tiêu đề bài học <span style="color:red;">*</span></label>
+                    <input type="text" name="tieu_de" required placeholder="VD: Bảng chữ cái Khmer cơ bản" style="font-size: 1.05rem;">
                 </div>
+
+                <!-- Mô tả ngắn -->
+                <div class="form-group full-width">
+                    <label><i class="fas fa-align-left" style="color: var(--primary); margin-right: 6px;"></i>Mô tả ngắn</label>
+                    <textarea name="mo_ta" rows="2" placeholder="Mô tả ngắn gọn về nội dung bài học (hiển thị ở danh sách)..."></textarea>
+                </div>
+
+                <!-- Danh mục bài học -->
                 <div class="form-group">
-                    <label>Danh mục</label>
+                    <label><i class="fas fa-folder" style="color: var(--primary); margin-right: 6px;"></i>Danh mục bài học</label>
                     <select name="ma_danh_muc">
                         <option value="">-- Chọn danh mục --</option>
                         <?php foreach($categories as $cat): ?>
@@ -1286,41 +1413,80 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                         <?php endforeach; ?>
                     </select>
                 </div>
+
+                <!-- Cấp độ -->
                 <div class="form-group">
-                    <label>Cấp độ <span style="color:red;">*</span></label>
+                    <label><i class="fas fa-layer-group" style="color: var(--primary); margin-right: 6px;"></i>Cấp độ <span style="color:red;">*</span></label>
                     <select name="cap_do" required>
-                        <option value="co_ban">Cơ bản</option>
-                        <option value="trung_cap">Trung cấp</option>
-                        <option value="nang_cao">Nâng cao</option>
+                        <option value="co_ban">🌱 Cơ bản</option>
+                        <option value="trung_cap">🌿 Trung cấp</option>
+                        <option value="nang_cao">🌳 Nâng cao</option>
                     </select>
                 </div>
+
+                <!-- Thời lượng -->
                 <div class="form-group">
-                    <label>Thứ tự hiển thị</label>
-                    <input type="number" name="thu_tu" value="0" min="0">
+                    <label><i class="fas fa-clock" style="color: var(--primary); margin-right: 6px;"></i>Thời lượng (phút)</label>
+                    <input type="number" name="thoi_luong" value="30" min="5" max="180" placeholder="30">
                 </div>
+
+                <!-- Trạng thái -->
                 <div class="form-group">
-                    <label>Thời lượng học (phút)</label>
-                    <input type="number" name="thoi_luong" value="30" min="5" max="180">
-                </div>
-                <div class="form-group full-width">
-                    <label>Mô tả ngắn</label>
-                    <textarea name="mo_ta" rows="2" placeholder="Mô tả ngắn gọn về bài học..."></textarea>
-                </div>
-                <div class="form-group full-width">
-                    <label>Nội dung bài học</label>
-                    <textarea name="noi_dung" placeholder="Nhập nội dung chi tiết của bài học..."></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Trạng thái</label>
+                    <label><i class="fas fa-toggle-on" style="color: var(--primary); margin-right: 6px;"></i>Trạng thái</label>
                     <select name="trang_thai">
-                        <option value="xuat_ban">Xuất bản</option>
-                        <option value="nhap">Nháp</option>
-                        <option value="an">Ẩn</option>
+                        <option value="hien_thi">🟢 Hiển thị</option>
+                        <option value="an">📝 Ẩn</option>
                     </select>
                 </div>
+
+                <!-- Video URL (YouTube) -->
+                <div class="form-group full-width">
+                    <label><i class="fab fa-youtube" style="color: #FF0000; margin-right: 6px;"></i>Link Video YouTube <small style="color: var(--gray); font-weight: 400;">(tùy chọn)</small></label>
+                    <input type="url" name="video_url" placeholder="https://www.youtube.com/watch?v=..." style="font-family: 'Consolas', monospace;">
+                    <small style="color: var(--gray); margin-top: 4px; display: block;">
+                        <i class="fas fa-info-circle"></i> Nhập link YouTube để hiển thị video trong bài học
+                    </small>
+                </div>
+
+                <!-- Nội dung bài học (HTML) -->
+                <div class="form-group full-width">
+                    <label><i class="fas fa-file-code" style="color: var(--primary); margin-right: 6px;"></i>Nội dung bài học <small style="color: var(--gray); font-weight: 400;">(hỗ trợ HTML)</small></label>
+                    <div class="html-editor-toolbar" style="background: var(--gray-light); padding: 8px 12px; border-radius: 12px 12px 0 0; border: 2px solid var(--gray-light); border-bottom: none; display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'b')" title="In đậm"><i class="fas fa-bold"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'i')" title="In nghiêng"><i class="fas fa-italic"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'u')" title="Gạch chân"><i class="fas fa-underline"></i></button>
+                        <span style="border-left: 1px solid #ccc; margin: 0 4px;"></span>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'h2')" title="Tiêu đề H2">H2</button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'h3')" title="Tiêu đề H3">H3</button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'p')" title="Đoạn văn"><i class="fas fa-paragraph"></i></button>
+                        <span style="border-left: 1px solid #ccc; margin: 0 4px;"></span>
+                        <button type="button" class="editor-btn" onclick="insertList('add_noi_dung', 'ul')" title="Danh sách"><i class="fas fa-list-ul"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertList('add_noi_dung', 'ol')" title="Danh sách số"><i class="fas fa-list-ol"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertLink('add_noi_dung')" title="Chèn link"><i class="fas fa-link"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertImage('add_noi_dung')" title="Chèn ảnh"><i class="fas fa-image"></i></button>
+                    </div>
+                    <textarea name="noi_dung" id="add_noi_dung" rows="10" placeholder="Nhập nội dung chi tiết bài học...&#10;&#10;Ví dụ:&#10;<h2>Giới thiệu</h2>&#10;<p>Bài học này sẽ giúp bạn...</p>&#10;<ul>&#10;  <li>Nội dung 1</li>&#10;  <li>Nội dung 2</li>&#10;</ul>" style="border-radius: 0 0 12px 12px; font-family: 'Consolas', monospace; font-size: 0.9rem;"></textarea>
+                </div>
+
+                <!-- Upload hình ảnh -->
+                <div class="form-group full-width">
+                    <label><i class="fas fa-image" style="color: var(--primary); margin-right: 6px;"></i>Hình ảnh bài học</label>
+                    <div class="image-upload-area" id="addImageUploadArea" onclick="document.getElementById('add_hinh_anh').click()">
+                        <input type="file" name="hinh_anh" id="add_hinh_anh" accept="image/*" style="display: none;" onchange="previewImage(this, 'addImagePreview')">
+                        <div id="addImagePreview" class="image-preview">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 2.5rem; color: var(--gray); margin-bottom: 12px;"></i>
+                            <p style="color: var(--gray); font-weight: 600;">Nhấp để chọn hình ảnh</p>
+                            <small style="color: var(--gray);">Định dạng: JPG, PNG, GIF. Tối đa 2MB</small>
+                        </div>
+                    </div>
+                </div>
+
             </div>
-            <div class="form-actions">
-                <button type="button" class="btn-cancel" onclick="closeModal('addModal')">Hủy</button>
+
+            <div class="form-actions" style="margin-top: 28px; padding-top: 20px; border-top: 2px solid var(--gray-light);">
+                <button type="button" class="btn-cancel" onclick="closeModal('addModal')">
+                    <i class="fas fa-times"></i> Hủy
+                </button>
                 <button type="submit" class="btn-submit">
                     <i class="fas fa-save"></i> Lưu bài học
                 </button>
@@ -1331,27 +1497,33 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
 
 <!-- EDIT MODAL -->
 <div class="modal" id="editModal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 900px;">
         <div class="modal-header">
-            <h3><i class="fas fa-edit"></i> Chỉnh sửa bài học</h3>
+            <h3><i class="fas fa-edit" style="color: var(--warning);"></i> Chỉnh sửa bài học</h3>
             <button class="modal-close" onclick="closeModal('editModal')">
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <form method="POST" action="">
+        <form method="POST" action="" enctype="multipart/form-data" id="editLessonForm">
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="ma_bai_hoc" id="edit_ma_bai_hoc">
+            
             <div class="form-grid">
-                <div class="form-group">
-                    <label>Tiêu đề bài học <span style="color:red;">*</span></label>
-                    <input type="text" name="tieu_de" id="edit_tieu_de" required>
+                <!-- Tiêu đề bài học -->
+                <div class="form-group full-width">
+                    <label><i class="fas fa-heading" style="color: var(--primary); margin-right: 6px;"></i>Tiêu đề bài học <span style="color:red;">*</span></label>
+                    <input type="text" name="tieu_de" id="edit_tieu_de" required style="font-size: 1.05rem;">
                 </div>
-                <div class="form-group">
-                    <label>Tiêu đề tiếng Khmer</label>
-                    <input type="text" name="tieu_de_khmer" id="edit_tieu_de_khmer">
+
+                <!-- Mô tả ngắn -->
+                <div class="form-group full-width">
+                    <label><i class="fas fa-align-left" style="color: var(--primary); margin-right: 6px;"></i>Mô tả ngắn</label>
+                    <textarea name="mo_ta" id="edit_mo_ta" rows="2" placeholder="Mô tả ngắn gọn về nội dung bài học..."></textarea>
                 </div>
+
+                <!-- Danh mục bài học -->
                 <div class="form-group">
-                    <label>Danh mục</label>
+                    <label><i class="fas fa-folder" style="color: var(--primary); margin-right: 6px;"></i>Danh mục bài học</label>
                     <select name="ma_danh_muc" id="edit_ma_danh_muc">
                         <option value="">-- Chọn danh mục --</option>
                         <?php foreach($categories as $cat): ?>
@@ -1361,36 +1533,81 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                         <?php endforeach; ?>
                     </select>
                 </div>
+
+                <!-- Cấp độ -->
                 <div class="form-group">
-                    <label>Cấp độ <span style="color:red;">*</span></label>
+                    <label><i class="fas fa-layer-group" style="color: var(--primary); margin-right: 6px;"></i>Cấp độ <span style="color:red;">*</span></label>
                     <select name="cap_do" id="edit_cap_do" required>
-                        <option value="co_ban">Cơ bản</option>
-                        <option value="trung_cap">Trung cấp</option>
-                        <option value="nang_cao">Nâng cao</option>
+                        <option value="co_ban">🌱 Cơ bản</option>
+                        <option value="trung_cap">🌿 Trung cấp</option>
+                        <option value="nang_cao">🌳 Nâng cao</option>
                     </select>
                 </div>
+
+                <!-- Thời lượng -->
                 <div class="form-group">
-                    <label>Thứ tự hiển thị</label>
-                    <input type="number" name="thu_tu" id="edit_thu_tu" min="0">
+                    <label><i class="fas fa-clock" style="color: var(--primary); margin-right: 6px;"></i>Thời lượng (phút)</label>
+                    <input type="number" name="thoi_luong" id="edit_thoi_luong" value="30" min="5" max="180">
                 </div>
+
+                <!-- Trạng thái -->
                 <div class="form-group">
-                    <label>Thời lượng học (phút)</label>
-                    <input type="number" name="thoi_luong_hoc" id="edit_thoi_luong_hoc" min="5" max="180">
-                </div>
-                <div class="form-group full-width">
-                    <label>Nội dung bài học</label>
-                    <textarea name="noi_dung" id="edit_noi_dung"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Trạng thái</label>
+                    <label><i class="fas fa-toggle-on" style="color: var(--primary); margin-right: 6px;"></i>Trạng thái</label>
                     <select name="trang_thai" id="edit_trang_thai">
-                        <option value="hoat_dong">Hoạt động</option>
-                        <option value="tam_ngung">Tạm ngừng</option>
+                        <option value="hien_thi">🟢 Hiển thị</option>
+                        <option value="an">📝 Ẩn</option>
                     </select>
                 </div>
+
+                <!-- Video URL (YouTube) -->
+                <div class="form-group full-width">
+                    <label><i class="fab fa-youtube" style="color: #FF0000; margin-right: 6px;"></i>Link Video YouTube <small style="color: var(--gray); font-weight: 400;">(tùy chọn)</small></label>
+                    <input type="url" name="video_url" id="edit_video_url" placeholder="https://www.youtube.com/watch?v=..." style="font-family: 'Consolas', monospace;">
+                    <small style="color: var(--gray); margin-top: 4px; display: block;">
+                        <i class="fas fa-info-circle"></i> Nhập link YouTube để hiển thị video trong bài học
+                    </small>
+                </div>
+
+                <!-- Nội dung bài học (HTML) -->
+                <div class="form-group full-width">
+                    <label><i class="fas fa-file-code" style="color: var(--primary); margin-right: 6px;"></i>Nội dung bài học <small style="color: var(--gray); font-weight: 400;">(hỗ trợ HTML)</small></label>
+                    <div class="html-editor-toolbar" style="background: var(--gray-light); padding: 8px 12px; border-radius: 12px 12px 0 0; border: 2px solid var(--gray-light); border-bottom: none; display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'b')" title="In đậm"><i class="fas fa-bold"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'i')" title="In nghiêng"><i class="fas fa-italic"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'u')" title="Gạch chân"><i class="fas fa-underline"></i></button>
+                        <span style="border-left: 1px solid #ccc; margin: 0 4px;"></span>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'h2')" title="Tiêu đề H2">H2</button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'h3')" title="Tiêu đề H3">H3</button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'p')" title="Đoạn văn"><i class="fas fa-paragraph"></i></button>
+                        <span style="border-left: 1px solid #ccc; margin: 0 4px;"></span>
+                        <button type="button" class="editor-btn" onclick="insertList('edit_noi_dung', 'ul')" title="Danh sách"><i class="fas fa-list-ul"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertList('edit_noi_dung', 'ol')" title="Danh sách số"><i class="fas fa-list-ol"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertLink('edit_noi_dung')" title="Chèn link"><i class="fas fa-link"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertImage('edit_noi_dung')" title="Chèn ảnh"><i class="fas fa-image"></i></button>
+                    </div>
+                    <textarea name="noi_dung" id="edit_noi_dung" rows="10" style="border-radius: 0 0 12px 12px; font-family: 'Consolas', monospace; font-size: 0.9rem;"></textarea>
+                </div>
+
+                <!-- Upload hình ảnh -->
+                <div class="form-group full-width">
+                    <label><i class="fas fa-image" style="color: var(--primary); margin-right: 6px;"></i>Hình ảnh bài học</label>
+                    <div class="image-upload-area" id="editImageUploadArea" onclick="document.getElementById('edit_hinh_anh').click()">
+                        <input type="file" name="hinh_anh" id="edit_hinh_anh" accept="image/*" style="display: none;" onchange="previewImage(this, 'editImagePreview')">
+                        <div id="editImagePreview" class="image-preview">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 2.5rem; color: var(--gray); margin-bottom: 12px;"></i>
+                            <p style="color: var(--gray); font-weight: 600;">Nhấp để chọn hình ảnh mới</p>
+                            <small style="color: var(--gray);">Để trống nếu không thay đổi</small>
+                        </div>
+                    </div>
+                    <div id="edit_current_image" style="margin-top: 12px;"></div>
+                </div>
+
             </div>
-            <div class="form-actions">
-                <button type="button" class="btn-cancel" onclick="closeModal('editModal')">Hủy</button>
+
+            <div class="form-actions" style="margin-top: 28px; padding-top: 20px; border-top: 2px solid var(--gray-light);">
+                <button type="button" class="btn-cancel" onclick="closeModal('editModal')">
+                    <i class="fas fa-times"></i> Hủy
+                </button>
                 <button type="submit" class="btn-submit">
                     <i class="fas fa-save"></i> Cập nhật
                 </button>
@@ -1424,13 +1641,40 @@ function openAddModal() {
 function openEditModal(lesson) {
     document.getElementById('edit_ma_bai_hoc').value = lesson.ma_bai_hoc;
     document.getElementById('edit_tieu_de').value = lesson.tieu_de;
-    document.getElementById('edit_tieu_de_khmer').value = lesson.tieu_de_khmer || '';
     document.getElementById('edit_ma_danh_muc').value = lesson.ma_danh_muc || '';
-    document.getElementById('edit_cap_do').value = lesson.cap_do;
-    document.getElementById('edit_thu_tu').value = lesson.thu_tu || 0;
-    document.getElementById('edit_thoi_luong_hoc').value = lesson.thoi_luong_hoc || 30;
+    document.getElementById('edit_cap_do').value = lesson.cap_do || 'co_ban';
+    document.getElementById('edit_thoi_luong').value = lesson.thoi_luong || 30;
+    document.getElementById('edit_mo_ta').value = lesson.mo_ta || '';
     document.getElementById('edit_noi_dung').value = lesson.noi_dung || '';
-    document.getElementById('edit_trang_thai').value = lesson.trang_thai;
+    document.getElementById('edit_video_url').value = lesson.video_url || '';
+    document.getElementById('edit_trang_thai').value = lesson.trang_thai || 'hien_thi';
+    
+    // Reset image preview
+    const editImagePreview = document.getElementById('editImagePreview');
+    const editImageUploadArea = document.getElementById('editImageUploadArea');
+    editImagePreview.innerHTML = `
+        <i class="fas fa-cloud-upload-alt" style="font-size: 2.5rem; color: var(--gray); margin-bottom: 12px;"></i>
+        <p style="color: var(--gray); font-weight: 600;">Nhấp để chọn hình ảnh mới</p>
+        <small style="color: var(--gray);">Để trống nếu không thay đổi</small>
+    `;
+    editImageUploadArea.classList.remove('has-image');
+    
+    // Hiển thị hình ảnh hiện tại
+    const currentImageDiv = document.getElementById('edit_current_image');
+    if(lesson.hinh_anh) {
+        currentImageDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--gray-light); border-radius: 8px;">
+                <img src="../uploads/lessons/${lesson.hinh_anh}" style="max-width: 100px; max-height: 80px; border-radius: 8px; object-fit: cover;">
+                <div>
+                    <p style="font-weight: 600; color: var(--dark); margin-bottom: 4px;">Hình ảnh hiện tại</p>
+                    <small style="color: var(--gray);">${lesson.hinh_anh}</small>
+                </div>
+            </div>
+        `;
+    } else {
+        currentImageDiv.innerHTML = '<p style="color: var(--gray); font-style: italic;">Chưa có hình ảnh</p>';
+    }
+    
     document.getElementById('editModal').style.display = 'flex';
 }
 
@@ -1504,6 +1748,76 @@ function logout() {
 function toggleProfileMenu() {
     // Add your profile menu logic here
     console.log('Profile menu clicked');
+}
+
+// HTML Editor Functions
+function insertTag(textareaId, tag) {
+    const textarea = document.getElementById(textareaId);
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end);
+    const replacement = `<${tag}>${selectedText}</${tag}>`;
+    
+    textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+    textarea.focus();
+    textarea.setSelectionRange(start + tag.length + 2, start + tag.length + 2 + selectedText.length);
+}
+
+function insertList(textareaId, listType) {
+    const textarea = document.getElementById(textareaId);
+    const start = textarea.selectionStart;
+    const listHtml = `<${listType}>\n  <li>Mục 1</li>\n  <li>Mục 2</li>\n  <li>Mục 3</li>\n</${listType}>`;
+    
+    textarea.value = textarea.value.substring(0, start) + listHtml + textarea.value.substring(start);
+    textarea.focus();
+}
+
+function insertLink(textareaId) {
+    const url = prompt('Nhập URL:', 'https://');
+    if (url) {
+        const textarea = document.getElementById(textareaId);
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = textarea.value.substring(start, end) || 'Văn bản liên kết';
+        const linkHtml = `<a href="${url}" target="_blank">${selectedText}</a>`;
+        
+        textarea.value = textarea.value.substring(0, start) + linkHtml + textarea.value.substring(end);
+        textarea.focus();
+    }
+}
+
+function insertImage(textareaId) {
+    const url = prompt('Nhập URL hình ảnh:', 'https://');
+    if (url) {
+        const alt = prompt('Nhập mô tả hình ảnh:', 'Hình ảnh');
+        const textarea = document.getElementById(textareaId);
+        const start = textarea.selectionStart;
+        const imgHtml = `<img src="${url}" alt="${alt}" style="max-width: 100%;">`;
+        
+        textarea.value = textarea.value.substring(0, start) + imgHtml + textarea.value.substring(start);
+        textarea.focus();
+    }
+}
+
+// Image Preview Function
+function previewImage(input, previewId) {
+    const preview = document.getElementById(previewId);
+    const uploadArea = input.closest('.image-upload-area');
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.innerHTML = `
+                <img src="${e.target.result}" alt="Preview">
+                <p style="margin-top: 10px; color: var(--success); font-weight: 600;">
+                    <i class="fas fa-check-circle"></i> ${input.files[0].name}
+                </p>
+                <small style="color: var(--gray);">Nhấp để thay đổi hình ảnh</small>
+            `;
+            uploadArea.classList.add('has-image');
+        }
+        reader.readAsDataURL(input.files[0]);
+    }
 }
 </script>
 

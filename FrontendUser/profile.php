@@ -1,1105 +1,1281 @@
 <?php
 /**
- * User Profile & Dashboard - Frontend User
- * Văn Hóa Khmer Nam Bộ
+ * Trang cá nhân - Modern Redesign 2024
  */
+require_once __DIR__ . '/includes/header.php';
+$pageTitle = __('profile');
 
-session_start();
-require_once 'config/database.php';
-
-// Kiểm tra đăng nhập
-if(!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit;
+if (!isLoggedIn()) {
+    redirect(BASE_URL . '/login.php', __('please_login_profile'), 'warning');
 }
 
-$db = Database::getInstance();
-$userId = $_SESSION['user_id'];
-
-// Lấy thông tin user
-$user = $db->findById('nguoi_dung', $userId);
-
-if(!$user) {
+$user = getCurrentUser();
+if (!$user) {
     session_destroy();
-    header('Location: login.php');
-    exit;
+    redirect(BASE_URL . '/login.php', __('invalid_session'), 'warning');
 }
 
-// Xử lý cập nhật thông tin
-$success = '';
-$error = '';
-
-if($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
-    $ho_ten = trim($_POST['ho_ten']);
-    $email = trim($_POST['email']);
-    $so_dien_thoai = trim($_POST['so_dien_thoai']);
-    $ngay_sinh = $_POST['ngay_sinh'];
-    $gioi_tinh = $_POST['gioi_tinh'];
+try {
+    $pdo = getDBConnection();
     
-    // Validate
-    if(empty($ho_ten) || empty($email)) {
-        $error = 'Vui lòng điền đầy đủ thông tin bắt buộc';
-    } else {
-        // Check email trùng
-        $existingUser = $db->query(
-            "SELECT id FROM nguoi_dung WHERE email = ? AND id != ?",
-            [$email, $userId]
-        );
-        
-        if($existingUser && count($existingUser) > 0) {
-            $error = 'Email đã được sử dụng';
-        } else {
-            $updateData = [
-                'ho_ten' => $ho_ten,
-                'email' => $email,
-                'so_dien_thoai' => $so_dien_thoai,
-                'ngay_sinh' => $ngay_sinh ?: null,
-                'gioi_tinh' => $gioi_tinh
-            ];
-            
-            // Xử lý avatar upload
-            if(isset($_FILES['avatar']) && $_FILES['avatar']['error'] === UPLOAD_ERR_OK) {
-                $allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-                if(in_array($_FILES['avatar']['type'], $allowedTypes)) {
-                    $uploadDir = 'uploads/avatar/';
-                    if(!is_dir($uploadDir)) {
-                        mkdir($uploadDir, 0755, true);
-                    }
-                    
-                    $extension = pathinfo($_FILES['avatar']['name'], PATHINFO_EXTENSION);
-                    $filename = 'user_' . $userId . '_' . time() . '.' . $extension;
-                    $uploadPath = $uploadDir . $filename;
-                    
-                    if(move_uploaded_file($_FILES['avatar']['tmp_name'], $uploadPath)) {
-                        // Xóa avatar cũ
-                        if($user['avatar'] && file_exists($user['avatar'])) {
-                            unlink($user['avatar']);
-                        }
-                        $updateData['avatar'] = $uploadPath;
-                    }
-                }
-            }
-            
-            if($db->update('nguoi_dung', $updateData, $userId)) {
-                $success = 'Cập nhật thông tin thành công!';
-                $user = $db->findById('nguoi_dung', $userId); // Refresh data
-                $_SESSION['user_name'] = $user['ho_ten'];
-            } else {
-                $error = 'Có lỗi xảy ra, vui lòng thử lại';
+    // Refresh user data from database to get latest points
+    $userStmt = $pdo->prepare("SELECT * FROM nguoi_dung WHERE ma_nguoi_dung = ?");
+    $userStmt->execute([$user['ma_nguoi_dung']]);
+    $freshUser = $userStmt->fetch();
+    
+    if ($freshUser) {
+        // Update session with fresh data
+        $_SESSION['user'] = [
+            'ma_nguoi_dung' => $freshUser['ma_nguoi_dung'],
+            'ten_dang_nhap' => $freshUser['ten_dang_nhap'],
+            'ho_ten' => $freshUser['ho_ten'],
+            'email' => $freshUser['email'],
+            'anh_dai_dien' => $freshUser['anh_dai_dien'],
+            'tong_diem' => $freshUser['tong_diem'],
+            'cap_do' => $freshUser['cap_do']
+        ];
+        $user = $freshUser; // Use fresh data
+    }
+
+    // Get user stats
+    $lessonsStmt = $pdo->prepare("SELECT COUNT(*) FROM tien_trinh_hoc_tap WHERE ma_nguoi_dung = ? AND trang_thai = 'hoan_thanh'");
+    $lessonsStmt->execute([$user['ma_nguoi_dung']]);
+    $lessonsCompleted = $lessonsStmt->fetchColumn();
+    
+    // Get quiz stats
+    $quizCount = 0;
+    $totalQuizScore = 0;
+    try {
+        $quizTables = ['ket_qua_quiz', 'ket_qua_quiz_chua', 'ket_qua_quiz_le_hoi', 'ket_qua_quiz_truyen', 'ket_qua_quiz_van_hoa'];
+        foreach ($quizTables as $table) {
+            $checkTable = $pdo->query("SHOW TABLES LIKE '$table'");
+            if ($checkTable->rowCount() > 0) {
+                $qStmt = $pdo->prepare("SELECT COUNT(*), COALESCE(SUM(diem), 0) FROM $table WHERE ma_nguoi_dung = ?");
+                $qStmt->execute([$user['ma_nguoi_dung']]);
+                $result = $qStmt->fetch(PDO::FETCH_NUM);
+                $quizCount += $result[0];
+                $totalQuizScore += $result[1];
+                
+                // Debug log
+                error_log("Quiz table $table: count={$result[0]}, score={$result[1]}");
             }
         }
+        error_log("Total quiz count: $quizCount, Total score: $totalQuizScore for user {$user['ma_nguoi_dung']}");
+    } catch (Exception $e) { 
+        error_log("Quiz query error: " . $e->getMessage());
+        $quizCount = 0; 
     }
+
+    // Get user rank
+    $rankStmt = $pdo->prepare("SELECT COUNT(*) + 1 FROM nguoi_dung WHERE tong_diem > ?");
+    $rankStmt->execute([$user['tong_diem'] ?? 0]);
+    $userRank = $rankStmt->fetchColumn();
+    
+    $totalUsersStmt = $pdo->query("SELECT COUNT(*) FROM nguoi_dung");
+    $totalUsers = $totalUsersStmt->fetchColumn();
+
+    // Get badges - with error handling
+    $badges = [];
+    $totalBadges = 0;
+    try {
+        // Check if tables exist
+        $checkBadgeTable = $pdo->query("SHOW TABLES LIKE 'huy_hieu'");
+        $checkUserBadgeTable = $pdo->query("SHOW TABLES LIKE 'huy_hieu_nguoi_dung'");
+        
+        if ($checkBadgeTable->rowCount() > 0 && $checkUserBadgeTable->rowCount() > 0) {
+            $badgesStmt = $pdo->prepare("SELECT h.*, hn.ngay_dat_duoc FROM huy_hieu h JOIN huy_hieu_nguoi_dung hn ON h.ma_huy_hieu = hn.ma_huy_hieu WHERE hn.ma_nguoi_dung = ? ORDER BY hn.ngay_dat_duoc DESC LIMIT 8");
+            $badgesStmt->execute([$user['ma_nguoi_dung']]);
+            $badges = $badgesStmt->fetchAll();
+            
+            $totalBadgesStmt = $pdo->prepare("SELECT COUNT(*) FROM huy_hieu_nguoi_dung WHERE ma_nguoi_dung = ?");
+            $totalBadgesStmt->execute([$user['ma_nguoi_dung']]);
+            $totalBadges = $totalBadgesStmt->fetchColumn();
+        }
+    } catch (Exception $e) {
+        error_log("Badge query error: " . $e->getMessage());
+    }
+
+    // Get saved items - with error handling
+    $savedItems = [];
+    $favoritesCount = 0;
+    try {
+        $checkFavTable = $pdo->query("SHOW TABLES LIKE 'yeu_thich'");
+        $checkCultureTable = $pdo->query("SHOW TABLES LIKE 'van_hoa'");
+        
+        if ($checkFavTable->rowCount() > 0 && $checkCultureTable->rowCount() > 0) {
+            $savedStmt = $pdo->prepare("
+                SELECT y.ma_yeu_thich, y.ma_doi_tuong, y.loai_doi_tuong, y.ngay_tao, 
+                       v.tieu_de, v.hinh_anh_chinh 
+                FROM yeu_thich y 
+                LEFT JOIN van_hoa v ON y.ma_doi_tuong = v.ma_van_hoa 
+                WHERE y.ma_nguoi_dung = ? AND y.loai_doi_tuong = 'van_hoa'
+                ORDER BY y.ngay_tao DESC LIMIT 6
+            ");
+            $savedStmt->execute([$user['ma_nguoi_dung']]);
+            $savedItems = $savedStmt->fetchAll();
+            
+            $totalFavStmt = $pdo->prepare("SELECT COUNT(*) FROM yeu_thich WHERE ma_nguoi_dung = ? AND loai_doi_tuong = 'van_hoa'");
+            $totalFavStmt->execute([$user['ma_nguoi_dung']]);
+            $favoritesCount = $totalFavStmt->fetchColumn();
+        }
+    } catch (Exception $e) {
+        error_log("Saved items query error: " . $e->getMessage());
+    }
+
+    // Get activities - with error handling
+    $activities = [];
+    try {
+        $checkActivityTable = $pdo->query("SHOW TABLES LIKE 'nhat_ky_hoat_dong'");
+        if ($checkActivityTable->rowCount() > 0) {
+            $activitiesStmt = $pdo->prepare("SELECT * FROM nhat_ky_hoat_dong WHERE ma_nguoi_dung = ? AND loai_nguoi_dung = 'nguoi_dung' ORDER BY ngay_tao DESC LIMIT 8");
+            $activitiesStmt->execute([$user['ma_nguoi_dung']]);
+            $activities = $activitiesStmt->fetchAll();
+        }
+    } catch (Exception $e) {
+        error_log("Activities query error: " . $e->getMessage());
+    }
+    
+    // Get learning progress - with error handling
+    $learningProgress = [];
+    try {
+        $checkProgressTable = $pdo->query("SHOW TABLES LIKE 'tien_trinh_hoc_tap'");
+        $checkLessonTable = $pdo->query("SHOW TABLES LIKE 'bai_hoc'");
+        
+        if ($checkProgressTable->rowCount() > 0 && $checkLessonTable->rowCount() > 0) {
+            // Kiểm tra cột nào tồn tại để ORDER BY
+            $columns = $pdo->query("DESCRIBE tien_trinh_hoc_tap")->fetchAll(PDO::FETCH_COLUMN);
+            
+            $orderBy = 'tt.ma_tien_trinh DESC'; // Default
+            if (in_array('ngay_cap_nhat', $columns)) {
+                $orderBy = 'tt.ngay_cap_nhat DESC';
+            } elseif (in_array('ngay_hoan_thanh', $columns) && in_array('ngay_bat_dau', $columns)) {
+                $orderBy = 'COALESCE(tt.ngay_hoan_thanh, tt.ngay_bat_dau) DESC';
+            } elseif (in_array('ngay_bat_dau', $columns)) {
+                $orderBy = 'tt.ngay_bat_dau DESC';
+            } elseif (in_array('ngay_tao', $columns)) {
+                $orderBy = 'tt.ngay_tao DESC';
+            }
+            
+            $progressStmt = $pdo->prepare("SELECT tt.*, bh.tieu_de as ten_bai_hoc FROM tien_trinh_hoc_tap tt LEFT JOIN bai_hoc bh ON tt.ma_bai_hoc = bh.ma_bai_hoc WHERE tt.ma_nguoi_dung = ? ORDER BY $orderBy LIMIT 5");
+            $progressStmt->execute([$user['ma_nguoi_dung']]);
+            $learningProgress = $progressStmt->fetchAll();
+        }
+    } catch (Exception $e) {
+        error_log("Learning progress query error: " . $e->getMessage());
+    }
+
+    // Get learning groups - with error handling
+    $learningGroups = [];
+    try {
+        $checkGroupTable = $pdo->query("SHOW TABLES LIKE 'nhom_hoc_tap'");
+        if ($checkGroupTable->rowCount() > 0) {
+            $groupsStmt = $pdo->prepare("SELECT nh.*, 
+                (SELECT COUNT(*) FROM thanh_vien_nhom WHERE ma_nhom = nh.ma_nhom AND trang_thai = 'hoat_dong') as so_thanh_vien
+                FROM nhom_hoc_tap nh 
+                WHERE nh.trang_thai = 'hoat_dong' 
+                ORDER BY nh.thu_tu ASC 
+                LIMIT 6");
+            $groupsStmt->execute();
+            $learningGroups = $groupsStmt->fetchAll();
+        }
+    } catch (Exception $e) {
+        error_log("Learning groups query error: " . $e->getMessage());
+    }
+
+} catch (Exception $e) {
+    $lessonsCompleted = $quizCount = $totalQuizScore = $userRank = $totalUsers = $totalBadges = $favoritesCount = 0;
+    $badges = $savedItems = $activities = $learningProgress = $learningGroups = [];
 }
 
-// Thống kê học tập
-$stats = [
-    'bai_hoc_hoan_thanh' => 0,
-    'tong_bai_hoc' => $db->count('bai_hoc', "trang_thai = 'hien_thi'"),
-    'diem_tich_luy' => $user['diem'] ?? 0,
-    'hang_hien_tai' => $user['hang'] ?? 'Người mới',
-    'ngay_hoc_lien_tiep' => $user['ngay_hoc_lien_tiep'] ?? 0
-];
-
-// Lấy tiến trình học tập (giả lập - cần bảng tien_trinh_hoc_tap)
-$progress = $db->query(
-    "SELECT bh.*, ttht.trang_thai, ttht.diem, ttht.ngay_hoan_thanh
-     FROM bai_hoc bh
-     LEFT JOIN tien_trinh_hoc_tap ttht ON bh.id = ttht.bai_hoc_id AND ttht.nguoi_dung_id = ?
-     WHERE ttht.nguoi_dung_id = ? AND ttht.trang_thai = 'hoan_thanh'
-     ORDER BY ttht.ngay_hoan_thanh DESC
-     LIMIT 5",
-    [$userId, $userId]
-);
-
-if($progress === false) {
-    $progress = []; // Nếu bảng chưa tồn tại
-} else {
-    $stats['bai_hoc_hoan_thanh'] = $db->query(
-        "SELECT COUNT(*) as count FROM tien_trinh_hoc_tap WHERE nguoi_dung_id = ? AND trang_thai = 'hoan_thanh'",
-        [$userId]
-    )[0]['count'] ?? 0;
-}
-
-// Huy hiệu (giả lập)
-$badges = [
-    ['name' => 'Người mới bắt đầu', 'icon' => 'fa-star', 'color' => '#10b981', 'earned' => true, 'description' => 'Hoàn thành bài học đầu tiên'],
-    ['name' => 'Siêng năng', 'icon' => 'fa-fire', 'color' => '#f59e0b', 'earned' => $stats['ngay_hoc_lien_tiep'] >= 7, 'description' => 'Học 7 ngày liên tiếp'],
-    ['name' => 'Học giỏi', 'icon' => 'fa-trophy', 'color' => '#eab308', 'earned' => $stats['bai_hoc_hoan_thanh'] >= 10, 'description' => 'Hoàn thành 10 bài học'],
-    ['name' => 'Chuyên gia', 'icon' => 'fa-crown', 'color' => '#8b5cf6', 'earned' => $stats['bai_hoc_hoan_thanh'] >= 20, 'description' => 'Hoàn thành 20 bài học'],
-    ['name' => 'Bậc thầy', 'icon' => 'fa-gem', 'color' => '#3b82f6', 'earned' => $stats['bai_hoc_hoan_thanh'] >= 50, 'description' => 'Hoàn thành 50 bài học'],
-    ['name' => 'Truyền nhân', 'icon' => 'fa-dragon', 'color' => '#ef4444', 'earned' => $stats['bai_hoc_hoan_thanh'] >= 100, 'description' => 'Hoàn thành 100 bài học']
-];
-
-// Bookmark (giả lập - cần bảng bookmark)
-$bookmarks = $db->query(
-    "SELECT td.*, b.ngay_tao as bookmark_date
-     FROM bookmark b
-     INNER JOIN truyen_dan_gian td ON b.truyen_id = td.id
-     WHERE b.nguoi_dung_id = ?
-     ORDER BY b.ngay_tao DESC
-     LIMIT 6",
-    [$userId]
-);
-
-if($bookmarks === false) {
-    $bookmarks = [];
-}
-
-// Tính phần trăm hoàn thành
-$completionPercent = $stats['tong_bai_hoc'] > 0 
-    ? round(($stats['bai_hoc_hoan_thanh'] / $stats['tong_bai_hoc']) * 100) 
-    : 0;
-
-$pageTitle = 'Trang cá nhân - ' . $user['ho_ten'];
-include 'includes/header.php';
+$userPoints = $user['tong_diem'] ?? 0;
+$userLevel = floor($userPoints / 100) + 1;
+$pointsToNextLevel = ($userLevel * 100) - $userPoints;
+$levelProgress = ($userPoints % 100);
+$joinDate = isset($user['ngay_tao']) ? date('d/m/Y', strtotime($user['ngay_tao'])) : 'N/A';
 ?>
 
+<?php require_once __DIR__ . '/includes/navbar.php'; ?>
+
+<style>
+/* ===== Profile Page ===== */
+.profile-page { 
+    min-height: 100vh; 
+    background: #ffffff; 
+    padding-top: 70px; 
+}
+
+/* ===== Hero Section ===== */
+.profile-hero { 
+    min-height: 30vh;
+    background: #ffffff; 
+    padding: 4rem 0 3rem; 
+    position: relative; 
+    border-bottom: 2px solid #e2e8f0;
+    margin-top: 70px;
+}
+
+.profile-hero-content { 
+    position: relative; 
+    z-index: 2; 
+    text-align: center; 
+    color: #000000; 
+}
+
+.profile-hero-title { 
+    font-size: clamp(2rem, 5vw, 2.5rem); 
+    font-weight: 900; 
+    margin-bottom: 0.75rem; 
+    color: #000000 !important; 
+}
+
+.profile-hero-subtitle { 
+    font-size: 1.125rem; 
+    color: #000000; 
+    font-weight: 600; 
+}
+
+/* Container */
+.profile-container { max-width: 1140px; margin: 0 auto; padding: 0 1rem; }
+
+/* ===== Main Card ===== */
+.profile-main-card { 
+    background: #ffffff; 
+    border-radius: 20px; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+    margin-top: 2rem; 
+    position: relative; 
+    z-index: 10; 
+    overflow: hidden; 
+    border: 2px solid #000000;
+}
+
+/* ===== Header ===== */
+.profile-header { 
+    display: flex; 
+    align-items: flex-start; 
+    gap: 1.5rem; 
+    padding: 2rem; 
+    background: #ffffff; 
+    border-bottom: 2px solid #000000; 
+}
+.profile-avatar-wrapper { position: relative; flex-shrink: 0; }
+.profile-avatar { 
+    width: 130px; 
+    height: 130px; 
+    border-radius: 50%; 
+    object-fit: cover; 
+    border: 3px solid #000000; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
+}
+
+.profile-avatar-badge { 
+    position: absolute; 
+    bottom: -4px; 
+    right: -4px; 
+    width: 44px; 
+    height: 44px; 
+    background: #ffffff; 
+    border-radius: 50%; 
+    border: 3px solid #000000; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    font-size: 1.125rem; 
+}
+
+.profile-avatar-edit { 
+    position: absolute; 
+    top: 6px; 
+    right: 6px; 
+    width: 36px; 
+    height: 36px; 
+    background: #ffffff; 
+    border: 2px solid #000000; 
+    border-radius: 50%; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    color: #000000; 
+    text-decoration: none; 
+    opacity: 0; 
+    transition: all 0.3s; 
+}
+
+.profile-avatar-wrapper:hover .profile-avatar-edit { 
+    opacity: 1; 
+}
+
+.profile-avatar-edit:hover { 
+    background: #000000; 
+    color: #ffffff; 
+}
+
+/* Info */
+.profile-info { flex: 1; min-width: 0; }
+.profile-name-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.profile-name { 
+    font-size: 1.75rem; 
+    font-weight: 900; 
+    color: #000000; 
+    margin: 0; 
+}
+
+.profile-level-badge { 
+    display: inline-flex; 
+    align-items: center; 
+    gap: 0.375rem; 
+    padding: 0.375rem 0.875rem; 
+    background: #ffffff; 
+    border: 2px solid #000000; 
+    border-radius: 50px; 
+    color: #000000; 
+    font-size: 0.75rem; 
+    font-weight: 700; 
+}
+
+.profile-email { 
+    font-size: 0.9375rem; 
+    color: #000000; 
+    font-weight: 600;
+    margin-bottom: 0.375rem; 
+    display: flex; 
+    align-items: center; 
+    gap: 0.5rem; 
+}
+
+.profile-meta { 
+    display: flex; 
+    align-items: center; 
+    gap: 1.25rem; 
+    flex-wrap: wrap; 
+    margin-bottom: 1rem; 
+}
+
+.profile-meta-item { 
+    display: flex; 
+    align-items: center; 
+    gap: 0.375rem; 
+    font-size: 0.8125rem; 
+    color: #000000; 
+    font-weight: 700;
+}
+
+.profile-meta-item i { 
+    color: #f59e0b; 
+    font-size: 0.875rem; 
+}
+
+/* ===== Level Progress ===== */
+.profile-level-progress { 
+    background: #ffffff; 
+    border: 2px solid #000000; 
+    border-radius: 12px; 
+    padding: 0.875rem 1rem; 
+    margin-bottom: 1rem; 
+}
+
+.level-progress-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 0.5rem; 
+}
+
+.level-progress-title { 
+    font-size: 0.8125rem; 
+    font-weight: 700; 
+    color: #000000; 
+    display: flex; 
+    align-items: center; 
+    gap: 0.375rem; 
+}
+
+.level-progress-points { 
+    font-size: 0.75rem; 
+    color: #000000; 
+    font-weight: 700; 
+}
+
+.level-progress-bar { 
+    height: 8px; 
+    background: #e2e8f0; 
+    border-radius: 8px; 
+    overflow: hidden; 
+    border: 1px solid #000000;
+}
+
+.level-progress-fill { 
+    height: 100%; 
+    background: #06b6d4; 
+    border-radius: 8px; 
+}
+
+/* ===== Actions ===== */
+.profile-actions { 
+    display: flex; 
+    gap: 0.625rem; 
+    flex-wrap: wrap; 
+}
+
+.profile-btn { 
+    padding: 0.75rem 1.25rem; 
+    border-radius: 12px; 
+    font-size: 0.875rem; 
+    font-weight: 700; 
+    text-decoration: none; 
+    display: inline-flex; 
+    align-items: center; 
+    gap: 0.5rem; 
+    transition: all 0.3s; 
+    cursor: pointer; 
+}
+
+.profile-btn.outline { 
+    background: #ffffff; 
+    color: #000000; 
+    border: 2px solid #000000; 
+}
+
+.profile-btn.outline:hover { 
+    background: #000000; 
+    color: #ffffff; 
+    transform: translateY(-2px);
+}
+
+/* ===== Stats ===== */
+.profile-stats-grid { 
+    display: grid; 
+    grid-template-columns: repeat(4, 1fr); 
+    border-top: 2px solid #000000; 
+}
+
+.profile-stat-item { 
+    text-align: center; 
+    padding: 1.5rem 0.75rem; 
+    border-right: 2px solid #000000; 
+    transition: all 0.3s; 
+}
+
+.profile-stat-item:last-child { 
+    border-right: none; 
+}
+
+.profile-stat-item:hover { 
+    background: #f8fafc; 
+}
+
+.stat-icon-wrapper { 
+    width: 50px; 
+    height: 50px; 
+    border-radius: 50%; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    margin: 0 auto 0.75rem; 
+    font-size: 1.25rem; 
+    background: #ffffff;
+    border: 2px solid #000000;
+}
+
+.stat-icon-wrapper.purple { color: #8b5cf6; }
+.stat-icon-wrapper.green { color: #10b981; }
+.stat-icon-wrapper.blue { color: #3b82f6; }
+.stat-icon-wrapper.yellow { color: #f59e0b; }
+
+.stat-number { 
+    font-size: 1.75rem; 
+    font-weight: 900; 
+    color: #000000; 
+    line-height: 1; 
+    margin-bottom: 0.25rem; 
+}
+
+.stat-label { 
+    font-size: 0.75rem; 
+    color: #64748b; 
+    font-weight: 700; 
+}
+
+/* Content Grid */
+.profile-content-grid { 
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem; 
+    padding: 1.5rem 0 2rem; 
+}
+
+/* Top Row - 2 columns */
+.profile-top-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+/* Bottom Row - 2 columns */
+.profile-bottom-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+}
+
+/* ===== Section Card ===== */
+.section-card { 
+    background: #ffffff; 
+    border-radius: 20px; 
+    padding: 1.5rem; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+    margin-bottom: 1.25rem; 
+    border: 2px solid #000000;
+}
+
+.section-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 1.25rem; 
+    padding-bottom: 0.875rem; 
+    border-bottom: 2px solid #000000; 
+}
+
+.section-title { 
+    font-size: 1rem; 
+    font-weight: 900; 
+    color: #000000; 
+    display: flex; 
+    align-items: center; 
+    gap: 0.625rem; 
+    margin: 0; 
+}
+
+.section-title-icon { 
+    width: 36px; 
+    height: 36px; 
+    background: #ffffff; 
+    border: 2px solid #000000; 
+    border-radius: 50%; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    color: #f59e0b; 
+    font-size: 0.9375rem; 
+}
+
+.section-count { 
+    font-size: 0.75rem; 
+    color: #000000; 
+    font-weight: 700; 
+    padding: 0.25rem 0.75rem; 
+    background: #ffffff; 
+    border: 2px solid #000000; 
+    border-radius: 50px; 
+}
+
+.section-link { 
+    font-size: 0.8125rem; 
+    color: #000000; 
+    font-weight: 700; 
+    text-decoration: none; 
+    display: flex; 
+    align-items: center; 
+    gap: 0.375rem; 
+}
+
+.section-link:hover { 
+    color: #f59e0b; 
+}
+
+/* ===== Badges ===== */
+.badges-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); 
+    gap: 0.875rem; 
+}
+
+.badge-card { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    padding: 1rem 0.75rem; 
+    background: #ffffff; 
+    border: 2px solid #000000; 
+    border-radius: 16px; 
+    text-align: center; 
+    transition: all 0.3s; 
+    min-width: 0; 
+}
+
+.badge-card:hover { 
+    transform: translateY(-4px); 
+    box-shadow: 0 6px 20px rgba(0,0,0,0.15); 
+}
+
+.badge-icon-wrapper { 
+    width: 56px; 
+    height: 56px; 
+    border-radius: 50%; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    margin-bottom: 0.625rem; 
+    font-size: 1.625rem; 
+    flex-shrink: 0; 
+    background: #ffffff;
+    border: 2px solid #000000;
+}
+
+.badge-icon-wrapper.gold { color: #fbbf24; }
+.badge-icon-wrapper.silver { color: #94a3b8; }
+.badge-icon-wrapper.bronze { color: #f97316; }
+.badge-icon-wrapper.purple { color: #8b5cf6; }
+.badge-icon-wrapper.green { color: #10b981; }
+
+.badge-name { 
+    font-size: 0.8125rem; 
+    font-weight: 900; 
+    color: #000000; 
+    margin-bottom: 0.25rem; 
+    line-height: 1.3; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+    max-width: 100%; 
+    padding: 0 0.25rem; 
+}
+
+.badge-date { 
+    font-size: 0.625rem; 
+    color: #64748b; 
+    font-weight: 600;
+}
+
+/* ===== Saved ===== */
+.saved-grid { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 0.75rem; 
+}
+
+.saved-item { 
+    display: flex; 
+    align-items: center; 
+    gap: 0.875rem; 
+    padding: 0.875rem 1rem; 
+    background: #ffffff; 
+    border: 2px solid #000000; 
+    border-radius: 14px; 
+    text-decoration: none; 
+    transition: all 0.3s; 
+    min-height: 80px; 
+}
+
+.saved-item:hover { 
+    background: #f8fafc; 
+    transform: translateX(3px); 
+}
+
+.saved-image-wrapper { 
+    width: 64px; 
+    height: 64px; 
+    border-radius: 12px; 
+    overflow: hidden; 
+    flex-shrink: 0; 
+    border: 2px solid #000000;
+}
+
+.saved-image { 
+    width: 100%; 
+    height: 100%; 
+    object-fit: cover; 
+}
+
+.saved-placeholder { 
+    width: 100%; 
+    height: 100%; 
+    background: #f8fafc; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    color: #667eea; 
+    font-size: 1.25rem; 
+    border-radius: 12px; 
+}
+
+.saved-info { 
+    flex: 1; 
+    min-width: 0; 
+    display: flex; 
+    flex-direction: column; 
+    justify-content: center; 
+}
+
+.saved-title { 
+    font-size: 0.875rem; 
+    font-weight: 900; 
+    color: #000000; 
+    margin-bottom: 0.375rem; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+    line-height: 1.4; 
+}
+
+.saved-meta { 
+    font-size: 0.6875rem; 
+    color: #64748b; 
+    font-weight: 700;
+    display: flex; 
+    align-items: center; 
+    gap: 0.25rem; 
+}
+
+.saved-meta i {
+    color: #f59e0b;
+}
+
+/* ===== Progress ===== */
+.progress-list { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 0.75rem; 
+}
+
+.progress-item { 
+    display: flex; 
+    align-items: center; 
+    gap: 0.875rem; 
+    padding: 0.875rem; 
+    background: #ffffff; 
+    border: 2px solid #000000; 
+    border-radius: 14px; 
+}
+
+.progress-icon { 
+    width: 40px; 
+    height: 40px; 
+    border-radius: 50%; 
+    background: #ffffff; 
+    border: 2px solid #000000; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    color: #10b981; 
+    font-size: 0.9375rem; 
+    flex-shrink: 0; 
+}
+
+.progress-info { 
+    flex: 1; 
+    min-width: 0; 
+}
+
+.progress-title { 
+    font-size: 0.875rem; 
+    font-weight: 900; 
+    color: #000000; 
+    margin-bottom: 0.375rem; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+}
+
+.progress-bar-wrapper { 
+    height: 6px; 
+    background: #e2e8f0; 
+    border-radius: 6px; 
+    overflow: hidden; 
+    border: 1px solid #000000;
+}
+
+.progress-bar-fill { 
+    height: 100%; 
+    background: #06b6d4; 
+    border-radius: 6px; 
+}
+
+.progress-status { 
+    font-size: 0.6875rem; 
+    font-weight: 700; 
+    padding: 0.25rem 0.625rem; 
+    border-radius: 50px; 
+    flex-shrink: 0; 
+    border: 2px solid #000000;
+}
+
+.progress-status.completed { 
+    background: #ffffff; 
+    color: #000000; 
+}
+
+.progress-status.in-progress { 
+    background: #ffffff; 
+    color: #000000; 
+}
+
+/* ===== Quick Stats ===== */
+.quick-stats-list { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 0.75rem; 
+}
+
+.quick-stat-item { 
+    display: flex; 
+    align-items: center; 
+    gap: 0.875rem; 
+    padding: 0.875rem; 
+    background: #ffffff; 
+    border: 2px solid #000000; 
+    border-radius: 12px; 
+}
+
+.quick-stat-icon { 
+    width: 40px; 
+    height: 40px; 
+    border-radius: 50%; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    font-size: 0.9375rem; 
+    flex-shrink: 0; 
+    background: #ffffff;
+    border: 2px solid #000000;
+}
+
+.quick-stat-icon.purple { color: #8b5cf6; }
+.quick-stat-icon.green { color: #10b981; }
+.quick-stat-icon.blue { color: #3b82f6; }
+
+.quick-stat-info { 
+    flex: 1; 
+}
+
+.quick-stat-label { 
+    font-size: 0.75rem; 
+    color: #64748b; 
+    font-weight: 700;
+    margin-bottom: 0.125rem; 
+}
+
+.quick-stat-value { 
+    font-size: 1.125rem; 
+    font-weight: 900; 
+    color: #000000; 
+}
+
+/* ===== Learning Groups ===== */
+.groups-grid { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 0.75rem; 
+}
+
+.group-item { 
+    display: flex; 
+    align-items: center; 
+    gap: 0.875rem; 
+    padding: 0.875rem 1rem; 
+    background: #ffffff; 
+    border: 2px solid #000000; 
+    border-radius: 14px; 
+    text-decoration: none; 
+    transition: all 0.3s; 
+}
+
+.group-item:hover { 
+    background: #f8fafc; 
+    transform: translateX(3px); 
+}
+
+.group-icon-wrapper { 
+    width: 48px; 
+    height: 48px; 
+    border-radius: 12px; 
+    background: linear-gradient(135deg, #667eea, #764ba2); 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    font-size: 1.125rem; 
+    color: white; 
+    flex-shrink: 0; 
+    border: 2px solid #000000;
+}
+
+.group-info { 
+    flex: 1; 
+    min-width: 0; 
+}
+
+.group-name { 
+    font-size: 0.875rem; 
+    font-weight: 900; 
+    color: #000000; 
+    margin-bottom: 0.25rem; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+}
+
+.group-members { 
+    font-size: 0.6875rem; 
+    color: #64748b; 
+    font-weight: 700;
+    display: flex; 
+    align-items: center; 
+    gap: 0.25rem; 
+}
+
+.group-members i {
+    color: #667eea;
+}
+
+/* ===== Empty State ===== */
+.empty-state { 
+    text-align: center; 
+    padding: 2rem 1rem; 
+}
+
+.empty-state-icon { 
+    width: 70px; 
+    height: 70px; 
+    background: #ffffff; 
+    border: 2px solid #000000; 
+    border-radius: 50%; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    margin: 0 auto 1rem; 
+    font-size: 1.75rem; 
+    color: #f59e0b; 
+}
+
+.empty-state-title { 
+    font-size: 0.9375rem; 
+    font-weight: 900; 
+    color: #000000; 
+    margin-bottom: 0.375rem; 
+}
+
+.empty-state-text { 
+    font-size: 0.8125rem; 
+    color: #64748b; 
+    font-weight: 600;
+    margin-bottom: 1rem; 
+}
+
+.empty-state-btn { 
+    display: inline-flex; 
+    align-items: center; 
+    gap: 0.375rem; 
+    padding: 0.625rem 1rem; 
+    background: #ffffff; 
+    color: #000000; 
+    border: 2px solid #000000; 
+    border-radius: 10px; 
+    text-decoration: none; 
+    font-size: 0.8125rem; 
+    font-weight: 700; 
+}
+
+.empty-state-btn:hover { 
+    background: #000000;
+    color: #ffffff;
+    transform: translateY(-2px); 
+}
+
+/* Responsive */
+@media (max-width: 1024px) { 
+    .profile-top-row,
+    .profile-bottom-row { 
+        grid-template-columns: 1fr; 
+    } 
+}
+@media (max-width: 768px) {
+    .profile-header { flex-direction: column; align-items: center; text-align: center; padding: 1.5rem; }
+    .profile-avatar { width: 110px; height: 110px; }
+    .profile-name-row { justify-content: center; }
+    .profile-name { font-size: 1.5rem; }
+    .profile-meta { justify-content: center; }
+    .profile-actions { justify-content: center; }
+    .profile-stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .profile-stat-item { padding: 1.25rem 0.5rem; }
+    .stat-number { font-size: 1.5rem; }
+    .badges-grid { grid-template-columns: repeat(2, 1fr); }
+    .section-card { padding: 1.25rem; }
+}
+@media (max-width: 480px) {
+    .profile-hero { padding: 2rem 0 5rem; }
+    .profile-main-card { margin-top: -3.5rem; border-radius: 20px; }
+    .profile-avatar { width: 90px; height: 90px; border-radius: 20px; }
+    .profile-avatar-badge { width: 36px; height: 36px; font-size: 0.9375rem; }
+}
+</style>
+
+
+<!-- Profile Page -->
 <div class="profile-page">
-    <!-- Header -->
-    <section class="profile-header">
-        <div class="container">
-            <div class="profile-header-content">
-                <div class="profile-avatar-section">
-                    <div class="profile-avatar-wrapper">
-                        <img src="<?php echo $user['avatar'] ?: 'assets/images/default-avatar.png'; ?>" 
-                             alt="<?php echo htmlspecialchars($user['ho_ten']); ?>"
-                             class="profile-avatar"
-                             id="avatarPreview">
-                        <button class="avatar-upload-btn" onclick="document.getElementById('avatarInput').click()">
-                            <i class="fas fa-camera"></i>
-                        </button>
-                    </div>
-                    <div class="profile-header-info">
-                        <h1><?php echo htmlspecialchars($user['ho_ten']); ?></h1>
-                        <p class="profile-email"><i class="fas fa-envelope"></i> <?php echo htmlspecialchars($user['email']); ?></p>
-                        <div class="profile-rank">
-                            <i class="fas fa-medal"></i>
-                            Hạng: <strong><?php echo htmlspecialchars($stats['hang_hien_tai']); ?></strong>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="profile-stats-quick">
-                    <div class="stat-quick-item">
-                        <i class="fas fa-fire"></i>
-                        <div>
-                            <strong><?php echo $stats['ngay_hoc_lien_tiep']; ?></strong>
-                            <span>Ngày liên tiếp</span>
-                        </div>
-                    </div>
-                    <div class="stat-quick-item">
-                        <i class="fas fa-star"></i>
-                        <div>
-                            <strong><?php echo number_format($stats['diem_tich_luy']); ?></strong>
-                            <span>Điểm</span>
-                        </div>
-                    </div>
-                </div>
+    <!-- Hero Section -->
+    <section class="profile-hero">
+        <div class="profile-container">
+            <div class="profile-hero-content">
+                <h1 class="profile-hero-title"><?= __('profile') ?></h1>
+                <p class="profile-hero-subtitle"><?= __('manage_your_account') ?></p>
             </div>
         </div>
     </section>
-    
+
     <!-- Main Content -->
-    <section class="profile-content">
-        <div class="container">
-            <div class="profile-tabs">
-                <button class="profile-tab active" data-tab="dashboard">
-                    <i class="fas fa-chart-line"></i> Dashboard
-                </button>
-                <button class="profile-tab" data-tab="info">
-                    <i class="fas fa-user"></i> Thông tin cá nhân
-                </button>
-                <button class="profile-tab" data-tab="badges">
-                    <i class="fas fa-trophy"></i> Huy hiệu
-                </button>
-                <button class="profile-tab" data-tab="bookmarks">
-                    <i class="fas fa-bookmark"></i> Đã lưu
-                </button>
-            </div>
-            
-            <!-- Tab: Dashboard -->
-            <div class="tab-content active" id="tab-dashboard">
-                <!-- Stats Grid -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon" style="background: linear-gradient(135deg, #6366f1, #8b5cf6);">
-                            <i class="fas fa-book"></i>
+    <div class="profile-container">
+        <!-- Main Profile Card -->
+        <div class="profile-main-card">
+            <!-- Profile Header -->
+            <div class="profile-header">
+                <div class="profile-avatar-wrapper">
+                    <img src="<?= !empty($user['anh_dai_dien']) ? UPLOAD_PATH . 'avatar/' . $user['anh_dai_dien'] : BASE_URL . '/assets/images/default-avatar.svg' ?>" 
+                         alt="<?= sanitize($user['ho_ten']) ?>" class="profile-avatar">
+                    <div class="profile-avatar-badge"><span>🏆</span></div>
+                    <a href="<?= BASE_URL ?>/settings.php" class="profile-avatar-edit" title="Đổi ảnh"><i class="fas fa-camera"></i></a>
+                </div>
+                
+                <div class="profile-info">
+                    <div class="profile-name-row">
+                        <h1 class="profile-name"><?= sanitize($user['ho_ten']) ?></h1>
+                        <span class="profile-level-badge"><i class="fas fa-star"></i> Level <?= $userLevel ?></span>
+                    </div>
+                    
+                    <p class="profile-email"><i class="fas fa-envelope"></i> <?= sanitize($user['email']) ?></p>
+                    
+                    <div class="profile-meta">
+                        <span class="profile-meta-item"><i class="fas fa-calendar-alt"></i> <?= __('joined_on') ?>: <?= $joinDate ?></span>
+                        <span class="profile-meta-item"><i class="fas fa-trophy"></i> <?= __('rank') ?> #<?= number_format($userRank) ?>/<?= number_format($totalUsers) ?></span>
+                        <span class="profile-meta-item"><i class="fas fa-coins"></i> <?= number_format($userPoints) ?> <?= __('points') ?></span>
+                    </div>
+                    
+                    <div class="profile-level-progress">
+                        <div class="level-progress-header">
+                            <span class="level-progress-title"><i class="fas fa-chart-line"></i> <?= __('learning_progress') ?></span>
+                            <span class="level-progress-points"><?= $levelProgress ?>/100 XP</span>
                         </div>
-                        <div class="stat-info">
-                            <h3><?php echo $stats['bai_hoc_hoan_thanh']; ?> / <?php echo $stats['tong_bai_hoc']; ?></h3>
-                            <p>Bài học hoàn thành</p>
-                            <div class="stat-progress">
-                                <div class="stat-progress-bar" style="width: <?php echo $completionPercent; ?>%"></div>
-                            </div>
-                            <span class="stat-percent"><?php echo $completionPercent; ?>%</span>
+                        <div class="level-progress-bar">
+                            <div class="level-progress-fill" style="width: <?= $levelProgress ?>%"></div>
                         </div>
                     </div>
                     
-                    <div class="stat-card">
-                        <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #f97316);">
-                            <i class="fas fa-star"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3><?php echo number_format($stats['diem_tich_luy']); ?></h3>
-                            <p>Điểm tích lũy</p>
-                        </div>
+                    <div class="profile-actions">
+                        <a href="<?= BASE_URL ?>/settings.php" class="profile-btn outline"><i class="fas fa-cog"></i> <?= __('settings') ?></a>
+                        <a href="<?= BASE_URL ?>/hoc-tieng-khmer.php" class="profile-btn outline"><i class="fas fa-graduation-cap"></i> Tiếp tục học</a>
+                        <a href="<?= BASE_URL ?>/leaderboard.php" class="profile-btn outline"><i class="fas fa-medal"></i> <?= __('leaderboard') ?></a>
                     </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #14b8a6);">
-                            <i class="fas fa-fire"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3><?php echo $stats['ngay_hoc_lien_tiep']; ?></h3>
-                            <p>Ngày học liên tiếp</p>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
-                            <i class="fas fa-medal"></i>
-                        </div>
-                        <div class="stat-info">
-                            <h3><?php echo htmlspecialchars($stats['hang_hien_tai']); ?></h3>
-                            <p>Hạng hiện tại</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Learning Progress Chart -->
-                <div class="dashboard-section">
-                    <h2 class="section-title"><i class="fas fa-chart-bar"></i> Tiến trình học tập</h2>
-                    <div class="progress-chart-card">
-                        <div class="progress-circle-wrapper">
-                            <svg class="progress-circle" viewBox="0 0 200 200">
-                                <circle cx="100" cy="100" r="90" fill="none" stroke="#e5e7eb" stroke-width="12"/>
-                                <circle cx="100" cy="100" r="90" fill="none" stroke="url(#gradient)" stroke-width="12"
-                                        stroke-dasharray="<?php echo $completionPercent * 5.65; ?> 565"
-                                        stroke-linecap="round" 
-                                        transform="rotate(-90 100 100)"/>
-                                <defs>
-                                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                        <stop offset="0%" style="stop-color:#6366f1"/>
-                                        <stop offset="100%" style="stop-color:#8b5cf6"/>
-                                    </linearGradient>
-                                </defs>
-                            </svg>
-                            <div class="progress-circle-text">
-                                <span class="progress-percent"><?php echo $completionPercent; ?>%</span>
-                                <span class="progress-label">Hoàn thành</span>
-                            </div>
-                        </div>
-                        
-                        <div class="progress-details">
-                            <h3>Thống kê chi tiết</h3>
-                            <div class="progress-detail-item">
-                                <span>Tổng số bài học</span>
-                                <strong><?php echo $stats['tong_bai_hoc']; ?> bài</strong>
-                            </div>
-                            <div class="progress-detail-item">
-                                <span>Đã hoàn thành</span>
-                                <strong class="text-success"><?php echo $stats['bai_hoc_hoan_thanh']; ?> bài</strong>
-                            </div>
-                            <div class="progress-detail-item">
-                                <span>Còn lại</span>
-                                <strong class="text-primary"><?php echo $stats['tong_bai_hoc'] - $stats['bai_hoc_hoan_thanh']; ?> bài</strong>
-                            </div>
-                            <a href="hoc-tieng-khmer.php" class="btn btn-primary" style="margin-top: 20px;">
-                                <i class="fas fa-book-reader"></i> Tiếp tục học
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Recent Activity -->
-                <?php if($progress && count($progress) > 0): ?>
-                <div class="dashboard-section">
-                    <h2 class="section-title"><i class="fas fa-history"></i> Hoạt động gần đây</h2>
-                    <div class="activity-list">
-                        <?php foreach($progress as $item): ?>
-                        <div class="activity-item">
-                            <div class="activity-icon">
-                                <i class="fas fa-check-circle"></i>
-                            </div>
-                            <div class="activity-content">
-                                <h4><?php echo htmlspecialchars($item['tieu_de']); ?></h4>
-                                <p>
-                                    Hoàn thành bài học • 
-                                    Đạt <?php echo $item['diem'] ?? 0; ?> điểm • 
-                                    <?php echo date('d/m/Y H:i', strtotime($item['ngay_hoan_thanh'])); ?>
-                                </p>
-                            </div>
-                            <a href="bai-hoc-chi-tiet.php?id=<?php echo $item['id']; ?>" class="btn btn-sm btn-outline">
-                                Xem lại
-                            </a>
-                        </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-                <?php endif; ?>
-            </div>
-            
-            <!-- Tab: Personal Info -->
-            <div class="tab-content" id="tab-info">
-                <?php if($success): ?>
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i> <?php echo $success; ?>
-                </div>
-                <?php endif; ?>
-                
-                <?php if($error): ?>
-                <div class="alert alert-error">
-                    <i class="fas fa-exclamation-circle"></i> <?php echo $error; ?>
-                </div>
-                <?php endif; ?>
-                
-                <div class="info-card">
-                    <h2 class="section-title"><i class="fas fa-user-edit"></i> Chỉnh sửa thông tin</h2>
-                    <form method="POST" enctype="multipart/form-data" class="profile-form">
-                        <input type="file" id="avatarInput" name="avatar" accept="image/*" style="display: none;" onchange="previewAvatar(this)">
-                        
-                        <div class="form-grid">
-                            <div class="form-group">
-                                <label>Họ và tên <span class="required">*</span></label>
-                                <input type="text" name="ho_ten" class="form-control" 
-                                       value="<?php echo htmlspecialchars($user['ho_ten']); ?>" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Email <span class="required">*</span></label>
-                                <input type="email" name="email" class="form-control" 
-                                       value="<?php echo htmlspecialchars($user['email']); ?>" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Số điện thoại</label>
-                                <input type="tel" name="so_dien_thoai" class="form-control" 
-                                       value="<?php echo htmlspecialchars($user['so_dien_thoai'] ?? ''); ?>">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Ngày sinh</label>
-                                <input type="date" name="ngay_sinh" class="form-control" 
-                                       value="<?php echo $user['ngay_sinh'] ?? ''; ?>">
-                            </div>
-                            
-                            <div class="form-group">
-                                <label>Giới tính</label>
-                                <select name="gioi_tinh" class="form-control">
-                                    <option value="">Chọn giới tính</option>
-                                    <option value="Nam" <?php echo ($user['gioi_tinh'] ?? '') === 'Nam' ? 'selected' : ''; ?>>Nam</option>
-                                    <option value="Nữ" <?php echo ($user['gioi_tinh'] ?? '') === 'Nữ' ? 'selected' : ''; ?>>Nữ</option>
-                                    <option value="Khác" <?php echo ($user['gioi_tinh'] ?? '') === 'Khác' ? 'selected' : ''; ?>>Khác</option>
-                                </select>
-                            </div>
-                        </div>
-                        
-                        <div class="form-actions">
-                            <button type="submit" name="update_profile" class="btn btn-primary">
-                                <i class="fas fa-save"></i> Lưu thay đổi
-                            </button>
-                            <a href="change-password.php" class="btn btn-secondary">
-                                <i class="fas fa-key"></i> Đổi mật khẩu
-                            </a>
-                        </div>
-                    </form>
                 </div>
             </div>
             
-            <!-- Tab: Badges -->
-            <div class="tab-content" id="tab-badges">
-                <div class="badges-section">
-                    <h2 class="section-title"><i class="fas fa-trophy"></i> Huy hiệu của bạn</h2>
+            <!-- Stats Grid -->
+            <div class="profile-stats-grid">
+                <div class="profile-stat-item">
+                    <div class="stat-icon-wrapper purple"><i class="fas fa-star"></i></div>
+                    <div class="stat-number"><?= number_format($userPoints) ?></div>
+                    <div class="stat-label"><?= __('points') ?></div>
+                </div>
+                <div class="profile-stat-item">
+                    <div class="stat-icon-wrapper green"><i class="fas fa-book-reader"></i></div>
+                    <div class="stat-number"><?= number_format($lessonsCompleted) ?></div>
+                    <div class="stat-label"><?= __('lessons') ?></div>
+                </div>
+                <div class="profile-stat-item">
+                    <div class="stat-icon-wrapper blue"><i class="fas fa-question-circle"></i></div>
+                    <div class="stat-number"><?= number_format($quizCount) ?></div>
+                    <div class="stat-label">Quiz</div>
+                </div>
+                <div class="profile-stat-item">
+                    <div class="stat-icon-wrapper yellow"><i class="fas fa-award"></i></div>
+                    <div class="stat-number"><?= number_format($totalBadges) ?></div>
+                    <div class="stat-label"><?= __('badges') ?></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Grid -->
+        <div class="profile-content-grid">
+            <!-- Top Row - Badges and Saved Items -->
+            <div class="profile-top-row">
+                <!-- Badges Section -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <span class="section-title-icon"><i class="fas fa-medal"></i></span>
+                            <?= __('badges') ?>
+                        </h2>
+                        <?php if ($totalBadges > 0): ?>
+                        <span class="section-count"><?= $totalBadges ?> <?= __('badges') ?></span>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <?php if (!empty($badges)): ?>
                     <div class="badges-grid">
-                        <?php foreach($badges as $badge): ?>
-                        <div class="badge-card <?php echo $badge['earned'] ? 'earned' : 'locked'; ?>">
-                            <div class="badge-icon" style="background: <?php echo $badge['earned'] ? $badge['color'] : '#d1d5db'; ?>;">
-                                <i class="fas <?php echo $badge['icon']; ?>"></i>
+                        <?php foreach ($badges as $badge): 
+                            $colors = ['gold', 'silver', 'bronze', 'purple', 'green'];
+                            $color = $colors[$badge['ma_huy_hieu'] % count($colors)];
+                        ?>
+                        <div class="badge-card">
+                            <div class="badge-icon-wrapper <?= $color ?>">
+                                <?php 
+                                $iconValue = $badge['icon'] ?? $badge['bieu_tuong'] ?? '🏅';
+                                // Kiểm tra nếu là FontAwesome class
+                                if (strpos($iconValue, 'fa-') === 0 || strpos($iconValue, 'fas ') === 0) {
+                                    echo '<i class="fas ' . $iconValue . '"></i>';
+                                } else {
+                                    // Là emoji
+                                    echo $iconValue;
+                                }
+                                ?>
                             </div>
-                            <h4><?php echo $badge['name']; ?></h4>
-                            <p><?php echo $badge['description']; ?></p>
-                            <?php if($badge['earned']): ?>
-                            <span class="badge-status earned"><i class="fas fa-check"></i> Đã đạt được</span>
-                            <?php else: ?>
-                            <span class="badge-status locked"><i class="fas fa-lock"></i> Chưa mở khóa</span>
-                            <?php endif; ?>
+                            <div class="badge-name"><?= sanitize(getCurrentLang() === 'km' && !empty($badge['ten_huy_hieu_khmer']) ? $badge['ten_huy_hieu_khmer'] : $badge['ten_huy_hieu']) ?></div>
+                            <div class="badge-date"><?= date('d/m/Y', strtotime($badge['ngay_dat_duoc'])) ?></div>
                         </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Tab: Bookmarks -->
-            <div class="tab-content" id="tab-bookmarks">
-                <div class="bookmarks-section">
-                    <h2 class="section-title"><i class="fas fa-bookmark"></i> Truyện đã lưu</h2>
-                    <?php if($bookmarks && count($bookmarks) > 0): ?>
-                    <div class="bookmarks-grid">
-                        <?php foreach($bookmarks as $story): ?>
-                        <article class="bookmark-card">
-                            <a href="truyen-chi-tiet.php?id=<?php echo $story['id']; ?>" class="bookmark-image">
-                                <img src="<?php echo $story['hinh_anh'] ?: 'assets/images/placeholder-story.jpg'; ?>" 
-                                     alt="<?php echo htmlspecialchars($story['tieu_de']); ?>">
-                            </a>
-                            <div class="bookmark-body">
-                                <h4>
-                                    <a href="truyen-chi-tiet.php?id=<?php echo $story['id']; ?>">
-                                        <?php echo htmlspecialchars($story['tieu_de']); ?>
-                                    </a>
-                                </h4>
-                                <?php if($story['tac_gia']): ?>
-                                <p class="bookmark-author"><?php echo htmlspecialchars($story['tac_gia']); ?></p>
-                                <?php endif; ?>
-                                <p class="bookmark-date">
-                                    <i class="fas fa-bookmark"></i>
-                                    Lưu ngày <?php echo date('d/m/Y', strtotime($story['bookmark_date'])); ?>
-                                </p>
-                                <div class="bookmark-actions">
-                                    <a href="truyen-chi-tiet.php?id=<?php echo $story['id']; ?>" class="btn btn-primary btn-sm">
-                                        <i class="fas fa-book-reader"></i> Đọc
-                                    </a>
-                                    <button class="btn btn-outline btn-sm" onclick="removeBookmark(<?php echo $story['id']; ?>)">
-                                        <i class="fas fa-trash"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </article>
                         <?php endforeach; ?>
                     </div>
                     <?php else: ?>
                     <div class="empty-state">
-                        <i class="fas fa-bookmark"></i>
-                        <h3>Chưa có truyện đã lưu</h3>
-                        <p>Hãy khám phá và lưu những truyện dân gian yêu thích của bạn</p>
-                        <a href="truyen-dan-gian.php" class="btn btn-primary">
-                            <i class="fas fa-book"></i> Khám phá truyện
+                        <div class="empty-state-icon"><i class="fas fa-medal"></i></div>
+                        <h3 class="empty-state-title"><?= __('no_activity') ?></h3>
+                        <p class="empty-state-text"><?= __('complete_lesson') ?></p>
+                        <a href="<?= BASE_URL ?>/hoc-tieng-khmer.php" class="empty-state-btn"><i class="fas fa-graduation-cap"></i> <?= __('start') ?></a>
+                    </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Saved Items -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <span class="section-title-icon"><i class="fas fa-heart"></i></span>
+                            <?= __('saved') ?>
+                        </h2>
+                        <?php if ($favoritesCount > 0): ?>
+                        <span class="section-count"><?= $favoritesCount ?></span>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <?php if (!empty($savedItems)): ?>
+                    <div class="saved-grid">
+                        <?php foreach ($savedItems as $item): 
+                            // Xử lý đường dẫn ảnh giống van-hoa-chi-tiet.php
+                            $imagePath = $item['hinh_anh_chinh'] ?? '';
+                            $imageUrl = '';
+                            if (!empty($imagePath)) {
+                                if (strpos($imagePath, 'http') === 0) {
+                                    $imageUrl = $imagePath;
+                                } elseif (strpos($imagePath, 'uploads/') === 0) {
+                                    $imageUrl = '/DoAn_ChuyenNganh/' . $imagePath;
+                                } else {
+                                    $imageUrl = UPLOAD_PATH . 'vanhoa/' . $imagePath;
+                                }
+                            }
+                        ?>
+                        <a href="<?= BASE_URL ?>/van-hoa-chi-tiet.php?id=<?= $item['ma_doi_tuong'] ?>" class="saved-item">
+                            <div class="saved-image-wrapper">
+                                <?php if (!empty($imageUrl)): ?>
+                                <img src="<?= $imageUrl ?>" alt="" class="saved-image" onerror="this.parentElement.innerHTML='<div class=\'saved-placeholder\'><i class=\'fas fa-image\'></i></div>';">
+                                <?php else: ?>
+                                <div class="saved-placeholder"><i class="fas fa-image"></i></div>
+                                <?php endif; ?>
+                            </div>
+                            <div class="saved-info">
+                                <div class="saved-title"><?= sanitize($item['tieu_de']) ?></div>
+                                <div class="saved-meta"><i class="fas fa-clock"></i> <?= timeAgo($item['ngay_tao']) ?></div>
+                            </div>
                         </a>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php else: ?>
+                    <div class="empty-state">
+                        <div class="empty-state-icon"><i class="fas fa-bookmark"></i></div>
+                        <h3 class="empty-state-title"><?= __('no_saved_articles') ?></h3>
+                        <a href="<?= BASE_URL ?>/van-hoa.php" class="empty-state-btn"><i class="fas fa-compass"></i> <?= __('explore_now') ?></a>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <!-- Bottom Row - Learning Progress and Groups -->
+            <div class="profile-bottom-row">
+                <!-- Learning Progress -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <span class="section-title-icon"><i class="fas fa-tasks"></i></span>
+                            <?= __('learning_progress') ?>
+                        </h2>
+                        <a href="<?= BASE_URL ?>/hoc-tieng-khmer.php" class="section-link"><?= __('view_all') ?> <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                    
+                    <?php if (!empty($learningProgress)): ?>
+                    <div class="progress-list">
+                        <?php foreach ($learningProgress as $progress): 
+                            $isCompleted = $progress['trang_thai'] === 'hoan_thanh';
+                            $percent = $isCompleted ? 100 : ($progress['tien_do'] ?? 50);
+                        ?>
+                        <div class="progress-item">
+                            <div class="progress-icon"><i class="fas fa-book"></i></div>
+                            <div class="progress-info">
+                                <div class="progress-title"><?= sanitize($progress['ten_bai_hoc'] ?? __('lesson') . ' #' . $progress['ma_bai_hoc']) ?></div>
+                                <div class="progress-bar-wrapper">
+                                    <div class="progress-bar-fill" style="width: <?= $percent ?>%"></div>
+                                </div>
+                            </div>
+                            <span class="progress-status <?= $isCompleted ? 'completed' : 'in-progress' ?>">
+                                <?= $isCompleted ? __('completed') : $percent . '%' ?>
+                            </span>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php else: ?>
+                    <div class="empty-state">
+                        <div class="empty-state-icon"><i class="fas fa-book-open"></i></div>
+                        <h3 class="empty-state-title"><?= __('not_started') ?></h3>
+                        <p class="empty-state-text"><?= __('learn_page_desc') ?></p>
+                        <a href="<?= BASE_URL ?>/hoc-tieng-khmer.php" class="empty-state-btn"><i class="fas fa-play"></i> <?= __('start') ?></a>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                
+                <!-- Learning Groups -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <span class="section-title-icon"><i class="fas fa-users"></i></span>
+                            Nhóm học tập
+                        </h2>
+                    </div>
+                    
+                    <?php if (!empty($learningGroups)): ?>
+                    <div class="groups-grid">
+                        <?php 
+                        $currentLang = getCurrentLang();
+                        $isKhmer = ($currentLang === 'km');
+                        foreach ($learningGroups as $group): 
+                        ?>
+                        <a href="<?= BASE_URL ?>/group_detail.php?id=<?= $group['ma_nhom'] ?>" class="group-item">
+                            <div class="group-icon-wrapper">
+                                <i class="<?= $group['icon'] ?? 'fas fa-users' ?>"></i>
+                            </div>
+                            <div class="group-info">
+                                <div class="group-name"><?= sanitize($isKhmer && !empty($group['ten_nhom_km']) ? $group['ten_nhom_km'] : $group['ten_nhom']) ?></div>
+                                <div class="group-members"><i class="fas fa-user-friends"></i> <?= number_format($group['so_thanh_vien']) ?> thành viên</div>
+                            </div>
+                        </a>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php else: ?>
+                    <div class="empty-state">
+                        <div class="empty-state-icon"><i class="fas fa-users"></i></div>
+                        <h3 class="empty-state-title">Chưa có nhóm học tập</h3>
+                        <p class="empty-state-text">Tham gia nhóm để học cùng cộng đồng</p>
                     </div>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
-    </section>
+    </div>
 </div>
 
-<style>
-.profile-page {
-    min-height: 100vh;
-    background: var(--gray-50);
-}
-
-.profile-header {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-    color: white;
-    padding: 40px 0;
-}
-
-.profile-header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.profile-avatar-section {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-}
-
-.profile-avatar-wrapper {
-    position: relative;
-}
-
-.profile-avatar {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 4px solid white;
-    box-shadow: var(--shadow-lg);
-}
-
-.avatar-upload-btn {
-    position: absolute;
-    bottom: 0;
-    right: 0;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: white;
-    color: var(--primary);
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: var(--shadow-md);
-    transition: var(--transition-base);
-}
-
-.avatar-upload-btn:hover {
-    transform: scale(1.1);
-}
-
-.profile-header-info h1 {
-    font-size: 32px;
-    margin-bottom: 8px;
-}
-
-.profile-email {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 16px;
-    opacity: 0.9;
-    margin-bottom: 12px;
-}
-
-.profile-rank {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: rgba(255,255,255,0.2);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    font-size: 14px;
-}
-
-.profile-stats-quick {
-    display: flex;
-    gap: 32px;
-}
-
-.stat-quick-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.stat-quick-item i {
-    font-size: 32px;
-}
-
-.stat-quick-item strong {
-    display: block;
-    font-size: 28px;
-    line-height: 1;
-}
-
-.stat-quick-item span {
-    display: block;
-    font-size: 13px;
-    opacity: 0.9;
-}
-
-.profile-content {
-    padding: 40px 0;
-}
-
-.profile-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 32px;
-    background: white;
-    padding: 8px;
-    border-radius: 12px;
-    box-shadow: var(--shadow-md);
-}
-
-.profile-tab {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px 24px;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--gray-600);
-    cursor: pointer;
-    transition: var(--transition-base);
-}
-
-.profile-tab:hover {
-    background: var(--gray-100);
-    color: var(--gray-900);
-}
-
-.profile-tab.active {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    color: white;
-}
-
-.tab-content {
-    display: none;
-}
-
-.tab-content.active {
-    display: block;
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 24px;
-    margin-bottom: 40px;
-}
-
-.stat-card {
-    display: flex;
-    gap: 16px;
-    padding: 24px;
-    background: white;
-    border-radius: 12px;
-    box-shadow: var(--shadow-md);
-}
-
-.stat-icon {
-    width: 64px;
-    height: 64px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 12px;
-    color: white;
-    font-size: 28px;
-    flex-shrink: 0;
-}
-
-.stat-info {
-    flex: 1;
-}
-
-.stat-info h3 {
-    font-size: 28px;
-    margin-bottom: 4px;
-    color: var(--gray-900);
-}
-
-.stat-info p {
-    font-size: 14px;
-    color: var(--gray-600);
-    margin-bottom: 12px;
-}
-
-.stat-progress {
-    height: 6px;
-    background: var(--gray-200);
-    border-radius: 3px;
-    overflow: hidden;
-    margin-bottom: 8px;
-}
-
-.stat-progress-bar {
-    height: 100%;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
-    border-radius: 3px;
-    transition: width 1s ease;
-}
-
-.stat-percent {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--primary);
-}
-
-.dashboard-section {
-    margin-bottom: 40px;
-}
-
-.progress-chart-card {
-    display: grid;
-    grid-template-columns: 300px 1fr;
-    gap: 48px;
-    padding: 40px;
-    background: white;
-    border-radius: 16px;
-    box-shadow: var(--shadow-md);
-}
-
-.progress-circle-wrapper {
-    position: relative;
-    width: 220px;
-    height: 220px;
-    margin: 0 auto;
-}
-
-.progress-circle {
-    width: 100%;
-    height: 100%;
-}
-
-.progress-circle-text {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-}
-
-.progress-percent {
-    display: block;
-    font-size: 48px;
-    font-weight: 700;
-    color: var(--primary);
-    line-height: 1;
-}
-
-.progress-label {
-    display: block;
-    font-size: 14px;
-    color: var(--gray-600);
-    margin-top: 8px;
-}
-
-.progress-details h3 {
-    font-size: 24px;
-    margin-bottom: 24px;
-}
-
-.progress-detail-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 0;
-    border-bottom: 1px solid var(--gray-200);
-}
-
-.progress-detail-item span {
-    color: var(--gray-600);
-}
-
-.progress-detail-item strong {
-    font-size: 18px;
-}
-
-.text-success {
-    color: #10b981;
-}
-
-.text-primary {
-    color: var(--primary);
-}
-
-.activity-list {
-    background: white;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: var(--shadow-md);
-}
-
-.activity-item {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--gray-200);
-    transition: var(--transition-base);
-}
-
-.activity-item:last-child {
-    border-bottom: none;
-}
-
-.activity-item:hover {
-    background: var(--gray-50);
-}
-
-.activity-icon {
-    width: 48px;
-    height: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #10b981, #14b8a6);
-    color: white;
-    border-radius: 12px;
-    font-size: 20px;
-}
-
-.activity-content {
-    flex: 1;
-}
-
-.activity-content h4 {
-    font-size: 16px;
-    margin-bottom: 4px;
-}
-
-.activity-content p {
-    font-size: 13px;
-    color: var(--gray-600);
-}
-
-.info-card {
-    background: white;
-    padding: 32px;
-    border-radius: 16px;
-    box-shadow: var(--shadow-md);
-}
-
-.profile-form {
-    margin-top: 32px;
-}
-
-.form-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 24px;
-    margin-bottom: 32px;
-}
-
-.form-group label {
-    display: block;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: var(--gray-700);
-}
-
-.required {
-    color: var(--danger);
-}
-
-.form-control {
-    width: 100%;
-    padding: 12px 16px;
-    border: 2px solid var(--gray-300);
-    border-radius: 8px;
-    font-size: 15px;
-    transition: var(--transition-base);
-}
-
-.form-control:focus {
-    outline: none;
-    border-color: var(--primary);
-}
-
-.form-actions {
-    display: flex;
-    gap: 12px;
-}
-
-.badges-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
-}
-
-.badge-card {
-    text-align: center;
-    padding: 32px 24px;
-    background: white;
-    border-radius: 16px;
-    box-shadow: var(--shadow-md);
-    transition: var(--transition-base);
-}
-
-.badge-card.earned {
-    border: 2px solid var(--primary);
-}
-
-.badge-card.locked {
-    opacity: 0.5;
-}
-
-.badge-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-lg);
-}
-
-.badge-icon {
-    width: 80px;
-    height: 80px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 16px;
-    border-radius: 50%;
-    color: white;
-    font-size: 36px;
-}
-
-.badge-card h4 {
-    font-size: 18px;
-    margin-bottom: 8px;
-}
-
-.badge-card p {
-    font-size: 14px;
-    color: var(--gray-600);
-    margin-bottom: 16px;
-}
-
-.badge-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 16px;
-    border-radius: 20px;
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.badge-status.earned {
-    background: #d1fae5;
-    color: #065f46;
-}
-
-.badge-status.locked {
-    background: var(--gray-200);
-    color: var(--gray-600);
-}
-
-.bookmarks-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
-}
-
-.bookmark-card {
-    background: white;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: var(--shadow-md);
-    transition: var(--transition-base);
-}
-
-.bookmark-card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-lg);
-}
-
-.bookmark-image {
-    display: block;
-    height: 200px;
-    overflow: hidden;
-}
-
-.bookmark-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.bookmark-body {
-    padding: 20px;
-}
-
-.bookmark-body h4 {
-    font-size: 16px;
-    margin-bottom: 8px;
-}
-
-.bookmark-body h4 a {
-    color: var(--gray-900);
-}
-
-.bookmark-author {
-    font-size: 13px;
-    color: var(--gray-600);
-    margin-bottom: 8px;
-}
-
-.bookmark-date {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--gray-500);
-    margin-bottom: 16px;
-}
-
-.bookmark-actions {
-    display: flex;
-    gap: 8px;
-}
-
-.bookmark-actions .btn {
-    flex: 1;
-}
-
-.alert {
-    padding: 16px 20px;
-    border-radius: 8px;
-    margin-bottom: 24px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.alert-success {
-    background: #d1fae5;
-    color: #065f46;
-}
-
-.alert-error {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
-@media (max-width: 768px) {
-    .profile-header-content {
-        flex-direction: column;
-        gap: 24px;
-    }
-    
-    .stats-grid,
-    .badges-grid,
-    .bookmarks-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .progress-chart-card {
-        grid-template-columns: 1fr;
-    }
-    
-    .form-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .profile-tabs {
-        flex-direction: column;
-    }
-}
-</style>
-
-<script>
-// Tab switching
-document.querySelectorAll('.profile-tab').forEach(tab => {
-    tab.addEventListener('click', function() {
-        // Remove active class
-        document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        
-        // Add active class
-        this.classList.add('active');
-        const tabId = 'tab-' + this.dataset.tab;
-        document.getElementById(tabId).classList.add('active');
-    });
-});
-
-// Avatar preview
-function previewAvatar(input) {
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            document.getElementById('avatarPreview').src = e.target.result;
-        };
-        reader.readAsDataURL(input.files[0]);
-    }
-}
-
-// Remove bookmark
-function removeBookmark(storyId) {
-    if(confirm('Bạn có chắc muốn xóa truyện này khỏi danh sách đã lưu?')) {
-        // TODO: Ajax call to remove bookmark
-        alert('Tính năng đang được phát triển');
-    }
-}
-</script>
-
-<?php include 'includes/footer.php'; ?>
+<?php require_once __DIR__ . '/includes/footer.php'; ?>

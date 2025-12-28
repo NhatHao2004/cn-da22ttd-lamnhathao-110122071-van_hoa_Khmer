@@ -49,9 +49,8 @@ class BaiHoc {
      * Tạo bài học mới
      */
     public function create($data) {
-        $sql = "INSERT INTO bai_hoc (ma_danh_muc, tieu_de, slug, mo_ta,
-                noi_dung, cap_do, thu_tu, thoi_luong, trang_thai) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $sql = "INSERT INTO bai_hoc (ma_danh_muc, tieu_de, slug, mo_ta, noi_dung, cap_do, thu_tu, thoi_luong, diem_thuong, hinh_anh, video_url, trang_thai) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         
         $params = [
             $data['ma_danh_muc'] ?? null,
@@ -62,6 +61,9 @@ class BaiHoc {
             $data['cap_do'] ?? 'co_ban',
             $data['thu_tu'] ?? 0,
             $data['thoi_luong'] ?? 30,
+            $data['diem_thuong'] ?? 10,
+            $data['hinh_anh'] ?? null,
+            $data['video_url'] ?? null,
             $data['trang_thai'] ?? 'xuat_ban'
         ];
         
@@ -81,7 +83,7 @@ class BaiHoc {
         
         $allowedFields = [
             'ma_danh_muc', 'tieu_de', 'mo_ta', 'noi_dung',
-            'cap_do', 'thu_tu', 'thoi_luong', 'trang_thai'
+            'cap_do', 'thu_tu', 'thoi_luong', 'diem_thuong', 'hinh_anh', 'video_url', 'trang_thai'
         ];
         
         foreach ($allowedFields as $field) {
@@ -93,7 +95,7 @@ class BaiHoc {
         
         if (isset($data['tieu_de'])) {
             $fields[] = "slug = ?";
-            $params[] = $this->generateSlug($data['tieu_de']);
+            $params[] = $this->generateSlug($data['tieu_de'], $id);
         }
         
         if (empty($fields)) {
@@ -142,14 +144,14 @@ class BaiHoc {
      * Lấy danh mục bài học
      */
     public function getCategories() {
-        $sql = "SELECT * FROM danh_muc WHERE loai_danh_muc = 'bai_hoc' ORDER BY thu_tu";
+        $sql = "SELECT * FROM danh_muc WHERE loai = 'bai_hoc' AND trang_thai = 'hien_thi' ORDER BY thu_tu, ten_danh_muc";
         return $this->db->query($sql);
     }
     
     /**
-     * Tạo slug
+     * Tạo slug unique
      */
-    private function generateSlug($title) {
+    private function generateSlug($title, $id = null) {
         $slug = mb_strtolower($title, 'UTF-8');
         
         $vietnamese = [
@@ -175,6 +177,31 @@ class BaiHoc {
         $slug = preg_replace('/\s+/', '-', $slug);
         $slug = preg_replace('/-+/', '-', $slug);
         $slug = trim($slug, '-');
+        
+        // Kiểm tra slug đã tồn tại chưa
+        $originalSlug = $slug;
+        $counter = 1;
+        
+        while (true) {
+            $sql = "SELECT COUNT(*) as count FROM bai_hoc WHERE slug = ?";
+            $params = [$slug];
+            
+            // Nếu đang update, bỏ qua bản ghi hiện tại
+            if ($id) {
+                $sql .= " AND ma_bai_hoc != ?";
+                $params[] = $id;
+            }
+            
+            $result = $this->db->querySingle($sql, $params);
+            
+            if ($result['count'] == 0) {
+                break; // Slug unique, thoát vòng lặp
+            }
+            
+            // Slug đã tồn tại, thêm số vào cuối
+            $slug = $originalSlug . '-' . $counter;
+            $counter++;
+        }
         
         return $slug;
     }

@@ -36,8 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'tom_tat' => $_POST['tom_tat'] ?? '',
                     'noi_dung' => $_POST['noi_dung'] ?? '',
                     'anh_dai_dien' => $anh_dai_dien,
-                    'the_loai' => $_POST['the_loai'] ?? 'truyen_co_tich',
-                    'nguon_goc' => $_POST['nguon_goc'] ?? '',
+                    'ma_danh_muc' => !empty($_POST['the_loai']) ? $_POST['the_loai'] : null,
+                    'nguon' => $_POST['nguon_goc'] ?? '',
                     'tac_gia' => $_POST['tac_gia'] ?? '',
                     'trang_thai' => $_POST['trang_thai'] ?? 'hien_thi',
                 ];
@@ -71,8 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $newImagePath = $uploader->upload($_FILES['anh_dai_dien']);
                     if ($newImagePath) {
                         // Xóa ảnh cũ nếu có
-                        if ($anh_dai_dien && file_exists(__DIR__ . '/' . $anh_dai_dien)) {
-                            @unlink(__DIR__ . '/' . $anh_dai_dien);
+                        if ($anh_dai_dien && file_exists(__DIR__ . '/../' . $anh_dai_dien)) {
+                            @unlink(__DIR__ . '/../' . $anh_dai_dien);
                         }
                         $anh_dai_dien = $newImagePath;
                     } else {
@@ -94,8 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'tom_tat' => trim($_POST['tom_tat'] ?? ''),
                     'noi_dung' => trim($_POST['noi_dung']),
                     'anh_dai_dien' => $anh_dai_dien,
-                    'the_loai' => $_POST['the_loai'] ?? 'truyen_co_tich',
-                    'nguon_goc' => trim($_POST['nguon_goc'] ?? ''),
+                    'ma_danh_muc' => !empty($_POST['the_loai']) ? $_POST['the_loai'] : null,
+                    'nguon' => trim($_POST['nguon_goc'] ?? ''),
                     'tac_gia' => trim($_POST['tac_gia'] ?? ''),
                     'trang_thai' => $_POST['trang_thai'] ?? 'hien_thi',
                 ];
@@ -114,8 +114,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'delete':
                 // Lấy thông tin truyện để xóa ảnh
                 $truyen = $truyenModel->getById($_POST['ma_truyen']);
-                if ($truyen && $truyen['anh_dai_dien'] && file_exists(__DIR__ . '/' . $truyen['anh_dai_dien'])) {
-                    @unlink(__DIR__ . '/' . $truyen['anh_dai_dien']);
+                if ($truyen && $truyen['anh_dai_dien'] && file_exists(__DIR__ . '/../' . $truyen['anh_dai_dien'])) {
+                    @unlink(__DIR__ . '/../' . $truyen['anh_dai_dien']);
                 }
                 
                 if($truyenModel->delete($_POST['ma_truyen'])) {
@@ -145,6 +145,12 @@ unset($_SESSION['flash_message'], $_SESSION['flash_type']);
 $stories = $truyenModel->getAll(100);
 if(!is_array($stories)) {
     $stories = [];
+}
+
+// Lấy danh mục truyện
+$categories = $db->query("SELECT * FROM danh_muc WHERE loai = 'truyen' AND trang_thai = 'hien_thi' ORDER BY thu_tu, ten_danh_muc");
+if(!is_array($categories)) {
+    $categories = [];
 }
 
 // Format ngày tạo
@@ -707,6 +713,16 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     font-size:1.15rem;
     transition:transform 0.3s ease;
 }
+.btn-quiz-link {
+    background:var(--white);
+    color:#8b5cf6;
+    box-shadow:0 2px 8px rgba(139,92,246,0.15);
+}
+.btn-quiz-link:hover {
+    background:linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+    color:var(--white);
+    box-shadow:0 8px 24px rgba(139,92,246,0.3);
+}
 .btn-add-new:hover i {
     transform:rotate(90deg) scale(1.3);
 }
@@ -846,6 +862,7 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     max-width:90%;
     max-height:90vh;
     overflow-y:auto;
+    box-shadow:0 20px 60px rgba(0,0,0,0.3);
 }
 .modal-header {
     display:flex;
@@ -856,6 +873,21 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
 .modal-header h3 {
     font-size:1.5rem;
     font-weight:800;
+    color:var(--dark);
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+.modal-header h3 i {
+    width:40px;
+    height:40px;
+    background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--white);
+    font-size:1.2rem;
 }
 .modal-close {
     width:36px;
@@ -889,6 +921,17 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     font-weight:700;
     font-size:0.95rem;
     color:var(--dark);
+    display:flex;
+    align-items:center;
+    gap:8px;
+}
+.form-group label i {
+    font-size:1rem;
+    color:var(--primary);
+}
+.form-group label .required {
+    color:var(--danger);
+    margin-left:2px;
 }
 .form-group input,
 .form-group select,
@@ -898,6 +941,19 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     border-radius:12px;
     font-size:0.95rem;
     transition:all 0.3s ease;
+    background:var(--white);
+}
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+    color:#a0aec0;
+    font-weight:400;
+}
+.form-group select {
+    appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236366f1' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 16px center;
+    padding-right:40px;
 }
 .form-group textarea {
     min-height:200px;
@@ -917,18 +973,25 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     margin-top:24px;
 }
 .btn-submit {
-    padding:12px 32px;
-    background:var(--gradient-primary);
+    padding:14px 36px;
+    background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color:var(--white);
     border:none;
     border-radius:12px;
     font-weight:700;
+    font-size:1rem;
     cursor:pointer;
     transition:all 0.3s ease;
+    display:flex;
+    align-items:center;
+    gap:8px;
 }
 .btn-submit:hover {
     transform:translateY(-2px);
-    box-shadow:var(--shadow-lg);
+    box-shadow:0 8px 24px rgba(102,126,234,0.4);
+}
+.btn-submit i {
+    font-size:1.1rem;
 }
 .btn-cancel {
     padding:12px 32px;
@@ -938,6 +1001,56 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
     border-radius:12px;
     font-weight:700;
     cursor:pointer;
+}
+
+/* HTML Editor Toolbar */
+.html-editor-toolbar {
+    background:var(--gray-light);
+    padding:10px 14px;
+    border-radius:12px 12px 0 0;
+    border:2px solid var(--gray-light);
+    border-bottom:none;
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    align-items:center;
+}
+.editor-btn {
+    width:40px;
+    height:40px;
+    border:none;
+    background:var(--white);
+    border-radius:8px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:1rem;
+    font-weight:700;
+    color:var(--dark);
+    transition:all 0.2s ease;
+    box-shadow:0 1px 3px rgba(0,0,0,0.1);
+}
+.editor-btn:hover {
+    background:var(--primary);
+    color:var(--white);
+    transform:translateY(-1px);
+    box-shadow:0 4px 8px rgba(99,102,241,0.3);
+}
+.editor-btn:active {
+    transform:translateY(0);
+}
+.editor-btn i {
+    font-size:0.95rem;
+}
+.html-editor-toolbar::before {
+    content:'';
+    display:inline-block;
+    width:2px;
+    height:24px;
+    background:var(--gray);
+    opacity:0.3;
+    margin:0 4px;
 }
 
 /* Toast */
@@ -1035,21 +1148,9 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                     <i class="fas fa-users"></i>
                     <span>Người dùng</span>
                 </div>
-                <div class="menu-item" onclick="location.href='thongbao.php'">
-                    <i class="fas fa-bell"></i>
-                    <span>Thông báo</span>
-                </div>
-                <div class="menu-item" onclick="location.href='tinnhan.php'">
+                <div class="menu-item" onclick="location.href='binhluan.php'">
                     <i class="fas fa-comments"></i>
-                    <span>Tin nhắn</span>
-                </div>
-                <div class="menu-item" onclick="location.href='hoatdong.php'">
-                    <i class="fas fa-history"></i>
-                    <span>Hoạt động</span>
-                </div>
-                <div class="menu-item" onclick="location.href='caidat.php'">
-                    <i class="fas fa-cog"></i>
-                    <span>Cài đặt</span>
+                    <span>Bình luận</span>
                 </div>
             </div>
             <div class="menu-section">
@@ -1122,10 +1223,12 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                             <p>Lưu giữ và chia sẻ kho tàng truyện dân gian Khmer Nam Bộ</p>
                         </div>
                     </div>
-                    <button class="btn-add-new" onclick="openAddModal()">
-                        <i class="fas fa-plus-circle"></i>
-                        Thêm truyện mới
-                    </button>
+                    <div style="display: flex; gap: 1rem;">
+                        <button class="btn-add-new" onclick="openAddModal()">
+                            <i class="fas fa-plus-circle"></i>
+                            Thêm truyện mới
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -1238,11 +1341,10 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                         <thead>
                             <tr>
                                 <th>STT</th>
-                                <th>Ảnh</th>
+                                <th>Hình Ảnh</th>
                                 <th>Tiêu đề</th>
                                 <th>Tiêu đề Khmer</th>
                                 <th>Thể loại</th>
-                                <th>Tác giả</th>
                                 <th>Lượt xem</th>
                                 <th>Trạng thái</th>
                                 <th>Ngày tạo</th>
@@ -1252,7 +1354,7 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                         <tbody id="storiesTableBody">
                             <?php if(empty($stories)): ?>
                             <tr>
-                                <td colspan="10" style="text-align:center; padding:40px; color:var(--gray);">
+                                <td colspan="9" style="text-align:center; padding:40px; color:var(--gray);">
                                     <i class="fas fa-inbox" style="font-size:3rem; margin-bottom:16px; display:block;"></i>
                                     <strong>Chưa có truyện nào</strong>
                                     <p style="margin-top:8px;">Hãy thêm truyện dân gian đầu tiên!</p>
@@ -1260,11 +1362,11 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                             </tr>
                             <?php else: ?>
                                 <?php foreach($stories as $index => $story): ?>
-                                <tr data-category="<?php echo $story['the_loai']; ?>" data-status="<?php echo $story['trang_thai']; ?>">
+                                <tr data-category="<?php echo $story['ma_danh_muc'] ?? ''; ?>" data-status="<?php echo $story['trang_thai']; ?>">
                                     <td><strong><?php echo $index + 1; ?></strong></td>
                                     <td>
                                         <?php if(!empty($story['anh_dai_dien'])): ?>
-                                            <img src="<?php echo htmlspecialchars($story['anh_dai_dien']); ?>" class="article-image" alt="Story">
+                                            <img src="../<?php echo htmlspecialchars($story['anh_dai_dien']); ?>" class="article-image" alt="Story">
                                         <?php else: ?>
                                             <div class="article-image" style="background:var(--gradient-story); display:flex; align-items:center; justify-content:center; color:white; font-weight:800;">
                                                 <i class="fas fa-book"></i>
@@ -1277,19 +1379,25 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                                     <td><?php echo htmlspecialchars($story['tieu_de_khmer'] ?? '-'); ?></td>
                                     <td>
                                         <?php 
-                                        $category_map = [
-                                            'truyen_co_tich' => ['text' => 'Cổ tích', 'class' => 'fairy'],
-                                            'truyen_truyen_thuyet' => ['text' => 'Truyền thuyết', 'class' => 'legend'],
-                                            'truyen_dan_gian' => ['text' => 'Dân gian', 'class' => 'folk'],
-                                            'truyen_than_thoai' => ['text' => 'Thần thoại', 'class' => 'myth']
-                                        ];
-                                        $category = $category_map[$story['the_loai']] ?? ['text' => 'Khác', 'class' => 'folk'];
+                                        // Lấy tên danh mục từ database
+                                        $categoryName = 'Chưa phân loại';
+                                        $categoryClass = 'folk';
+                                        
+                                        if (!empty($story['ma_danh_muc'])) {
+                                            $catResult = $db->querySingle("SELECT ten_danh_muc FROM danh_muc WHERE ma_danh_muc = ?", [$story['ma_danh_muc']]);
+                                            if ($catResult) {
+                                                $categoryName = $catResult['ten_danh_muc'];
+                                                // Map class dựa trên tên
+                                                if (strpos($categoryName, 'Cổ tích') !== false) $categoryClass = 'fairy';
+                                                elseif (strpos($categoryName, 'Truyền thuyết') !== false) $categoryClass = 'legend';
+                                                elseif (strpos($categoryName, 'Thần thoại') !== false) $categoryClass = 'myth';
+                                            }
+                                        }
                                         ?>
-                                        <span class="category-badge <?php echo $category['class']; ?>">
-                                            <?php echo $category['text']; ?>
+                                        <span class="category-badge <?php echo $categoryClass; ?>">
+                                            <?php echo htmlspecialchars($categoryName); ?>
                                         </span>
                                     </td>
-                                    <td><?php echo htmlspecialchars($story['tac_gia'] ?? 'Dân gian'); ?></td>
                                     <td>
                                         <i class="fas fa-eye"></i>
                                         <?php echo number_format($story['luot_xem'] ?? 0); ?>
@@ -1328,7 +1436,7 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
 <div class="modal" id="addModal">
     <div class="modal-content">
         <div class="modal-header">
-            <h3>Thêm truyện dân gian mới</h3>
+            <h3><i class="fas fa-book-reader"></i> Thêm truyện dân gian mới</h3>
             <button class="modal-close" onclick="closeModal('addModal')">
                 <i class="fas fa-times"></i>
             </button>
@@ -1337,48 +1445,62 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
             <input type="hidden" name="action" value="add">
             <div class="form-grid">
                 <div class="form-group">
-                    <label>Tiêu đề truyện <span style="color:red;">*</span></label>
+                    <label><i class="fas fa-book"></i> Tiêu đề truyện <span class="required">*</span></label>
                     <input type="text" name="tieu_de" required placeholder="VD: Tấm Cám">
                 </div>
                 <div class="form-group">
-                    <label>Tiêu đề tiếng Khmer</label>
+                    <label><i class="fas fa-language"></i> Tiêu đề tiếng Khmer</label>
                     <input type="text" name="tieu_de_khmer" placeholder="រឿងតាមកាម">
                 </div>
                 <div class="form-group">
-                    <label>Thể loại <span style="color:red;">*</span></label>
+                    <label><i class="fas fa-tags"></i> Thể loại <span class="required">*</span></label>
                     <select name="the_loai" required>
-                        <option value="truyen_co_tich">Truyện cổ tích</option>
-                        <option value="truyen_truyen_thuyet">Truyền thuyết</option>
-                        <option value="truyen_dan_gian">Truyện dân gian</option>
-                        <option value="truyen_than_thoai">Thần thoại</option>
+                        <option value="">-- Chọn thể loại --</option>
+                        <?php foreach($categories as $cat): ?>
+                        <option value="<?php echo $cat['ma_danh_muc']; ?>">
+                            <?php echo htmlspecialchars($cat['ten_danh_muc']); ?>
+                        </option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Tác giả</label>
+                    <label><i class="fas fa-user-edit"></i> Tác giả</label>
                     <input type="text" name="tac_gia" placeholder="VD: Dân gian Khmer">
                 </div>
                 <div class="form-group full-width">
-                    <label>Nguồn gốc</label>
+                    <label><i class="fas fa-info-circle"></i> Nguồn gốc</label>
                     <input type="text" name="nguon_goc" placeholder="VD: Truyền miệng từ các già làng Khmer">
                 </div>
                 <div class="form-group full-width">
-                    <label>Tóm tắt</label>
+                    <label><i class="fas fa-align-left"></i> Tóm tắt</label>
                     <textarea name="tom_tat" placeholder="Tóm tắt ngắn gọn nội dung truyện..." style="min-height:100px;"></textarea>
                 </div>
                 <div class="form-group full-width">
-                    <label>Nội dung truyện <span style="color:red;">*</span></label>
-                    <textarea name="noi_dung" required placeholder="Nhập nội dung đầy đủ của truyện..."></textarea>
+                    <label><i class="fas fa-file-code" style="color: var(--primary); margin-right: 6px;"></i>Nội dung truyện <small style="color: var(--gray); font-weight: 400;">(hỗ trợ HTML)</small> <span style="color:red;">*</span></label>
+                    <div class="html-editor-toolbar" style="background: var(--gray-light); padding: 8px 12px; border-radius: 12px 12px 0 0; border: 2px solid var(--gray-light); border-bottom: none; display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'b')" title="In đậm"><i class="fas fa-bold"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'i')" title="In nghiêng"><i class="fas fa-italic"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'u')" title="Gạch chân"><i class="fas fa-underline"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'h2')" title="Tiêu đề 2"><i class="fas fa-heading"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'h3')" title="Tiêu đề 3"><i class="fas fa-heading" style="font-size: 0.9em;"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'p')" title="Đoạn văn"><i class="fas fa-paragraph"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'ul')" title="Danh sách"><i class="fas fa-list-ul"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'ol')" title="Danh sách số"><i class="fas fa-list-ol"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('add_noi_dung', 'a')" title="Link"><i class="fas fa-link"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertImage('add_noi_dung')" title="Chèn ảnh"><i class="fas fa-image"></i></button>
+                    </div>
+                    <textarea name="noi_dung" id="add_noi_dung" required placeholder="Nhập nội dung đầy đủ của truyện...&#10;&#10;Ví dụ:&#10;<p>Ngày xửa ngày xưa...</p>&#10;<p>Có một...</p>" rows="10" style="border-radius: 0 0 12px 12px; font-family: 'Consolas', monospace; font-size: 0.9rem;"></textarea>
                 </div>
                 <div class="form-group full-width">
-                    <label>Ảnh đại diện</label>
+                    <label><i class="fas fa-image"></i> Ảnh đại diện</label>
                     <input type="file" name="anh_dai_dien" id="add_anh_dai_dien" accept="image/*" onchange="previewImage(this, 'add_preview')">
                     <img id="add_preview" style="display:none; margin-top:12px; max-width:200px; max-height:200px; border-radius:12px; object-fit:cover; box-shadow:0 4px 12px rgba(0,0,0,0.1);">
                 </div>
                 <div class="form-group">
-                    <label>Trạng thái</label>
+                    <label><i class="fas fa-toggle-on"></i> Trạng thái</label>
                     <select name="trang_thai">
-                        <option value="hien_thi">Hiển thị</option>
-                        <option value="an">Ẩn</option>
+                        <option value="hien_thi">✅ Hiển thị</option>
+                        <option value="an">🔒 Ẩn</option>
                     </select>
                 </div>
             </div>
@@ -1416,10 +1538,12 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                 <div class="form-group">
                     <label>Thể loại <span style="color:red;">*</span></label>
                     <select name="the_loai" id="edit_the_loai" required>
-                        <option value="truyen_co_tich">Truyện cổ tích</option>
-                        <option value="truyen_truyen_thuyet">Truyền thuyết</option>
-                        <option value="truyen_dan_gian">Truyện dân gian</option>
-                        <option value="truyen_than_thoai">Thần thoại</option>
+                        <option value="">-- Chọn thể loại --</option>
+                        <?php foreach($categories as $cat): ?>
+                        <option value="<?php echo $cat['ma_danh_muc']; ?>">
+                            <?php echo htmlspecialchars($cat['ten_danh_muc']); ?>
+                        </option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="form-group">
@@ -1435,8 +1559,20 @@ body {background:var(--gray-light); color:var(--dark); line-height:1.6;}
                     <textarea name="tom_tat" id="edit_tom_tat" style="min-height:100px;"></textarea>
                 </div>
                 <div class="form-group full-width">
-                    <label>Nội dung truyện <span style="color:red;">*</span></label>
-                    <textarea name="noi_dung" id="edit_noi_dung" required></textarea>
+                    <label><i class="fas fa-file-code" style="color: var(--primary); margin-right: 6px;"></i>Nội dung truyện <small style="color: var(--gray); font-weight: 400;">(hỗ trợ HTML)</small> <span style="color:red;">*</span></label>
+                    <div class="html-editor-toolbar" style="background: var(--gray-light); padding: 8px 12px; border-radius: 12px 12px 0 0; border: 2px solid var(--gray-light); border-bottom: none; display: flex; gap: 6px; flex-wrap: wrap;">
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'b')" title="In đậm"><i class="fas fa-bold"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'i')" title="In nghiêng"><i class="fas fa-italic"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'u')" title="Gạch chân"><i class="fas fa-underline"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'h2')" title="Tiêu đề 2"><i class="fas fa-heading"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'h3')" title="Tiêu đề 3"><i class="fas fa-heading" style="font-size: 0.9em;"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'p')" title="Đoạn văn"><i class="fas fa-paragraph"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'ul')" title="Danh sách"><i class="fas fa-list-ul"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'ol')" title="Danh sách số"><i class="fas fa-list-ol"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertTag('edit_noi_dung', 'a')" title="Link"><i class="fas fa-link"></i></button>
+                        <button type="button" class="editor-btn" onclick="insertImage('edit_noi_dung')" title="Chèn ảnh"><i class="fas fa-image"></i></button>
+                    </div>
+                    <textarea name="noi_dung" id="edit_noi_dung" required rows="10" style="border-radius: 0 0 12px 12px; font-family: 'Consolas', monospace; font-size: 0.9rem;"></textarea>
                 </div>
                 <div class="form-group full-width">
                     <label>Ảnh đại diện</label>
@@ -1555,9 +1691,9 @@ function loadAndEditStory(id) {
             document.getElementById('edit_ma_truyen').value = story.ma_truyen;
             document.getElementById('edit_tieu_de').value = story.tieu_de;
             document.getElementById('edit_tieu_de_khmer').value = story.tieu_de_khmer || '';
-            document.getElementById('edit_the_loai').value = story.the_loai;
+            document.getElementById('edit_the_loai').value = story.ma_danh_muc || '';
             document.getElementById('edit_tac_gia').value = story.tac_gia || '';
-            document.getElementById('edit_nguon_goc').value = story.nguon_goc || '';
+            document.getElementById('edit_nguon_goc').value = story.nguon || '';
             document.getElementById('edit_tom_tat').value = story.tom_tat || '';
             document.getElementById('edit_noi_dung').value = story.noi_dung || '';
             // Không thể set value cho input file, chỉ hiển thị ảnh hiện tại
@@ -1566,7 +1702,7 @@ function loadAndEditStory(id) {
             // Hiển thị ảnh hiện tại nếu có
             const currentImagePreview = document.getElementById('edit_current_image_preview');
             if (currentImagePreview && story.anh_dai_dien) {
-                currentImagePreview.innerHTML = '<p style="margin:10px 0; color:#666;">Ảnh hiện tại:</p><img src="' + story.anh_dai_dien + '" style="max-width:200px; border-radius:8px;">';
+                currentImagePreview.innerHTML = '<p style="margin:10px 0; color:#666;">Ảnh hiện tại:</p><img src="../' + story.anh_dai_dien + '" style="max-width:200px; border-radius:8px;">';
             } else if (currentImagePreview) {
                 currentImagePreview.innerHTML = '<p style="margin:10px 0; color:#999;">Chưa có ảnh</p>';
             }
@@ -1654,6 +1790,45 @@ function logout() {
 function toggleProfileMenu() {
     // Add your profile menu logic here
     console.log('Profile menu clicked');
+}
+
+// HTML Editor Functions
+function insertTag(textareaId, tag) {
+    const textarea = document.getElementById(textareaId);
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = textarea.value.substring(start, end);
+    
+    if (tag === 'ul' || tag === 'ol') {
+        const listHtml = `<${tag}>\n  <li>Mục 1</li>\n  <li>Mục 2</li>\n  <li>Mục 3</li>\n</${tag}>`;
+        textarea.value = textarea.value.substring(0, start) + listHtml + textarea.value.substring(end);
+        textarea.focus();
+    } else if (tag === 'a') {
+        const url = prompt('Nhập URL:', 'https://');
+        if (url) {
+            const linkText = selectedText || 'Văn bản liên kết';
+            const linkHtml = `<a href="${url}" target="_blank">${linkText}</a>`;
+            textarea.value = textarea.value.substring(0, start) + linkHtml + textarea.value.substring(end);
+            textarea.focus();
+        }
+    } else {
+        const replacement = `<${tag}>${selectedText}</${tag}>`;
+        textarea.value = textarea.value.substring(0, start) + replacement + textarea.value.substring(end);
+        textarea.focus();
+        textarea.setSelectionRange(start + tag.length + 2, start + tag.length + 2 + selectedText.length);
+    }
+}
+
+function insertImage(textareaId) {
+    const url = prompt('Nhập URL hình ảnh:', 'https://');
+    if (url) {
+        const alt = prompt('Nhập mô tả hình ảnh:', 'Hình ảnh');
+        const textarea = document.getElementById(textareaId);
+        const start = textarea.selectionStart;
+        const imgHtml = `<img src="${url}" alt="${alt}" style="max-width: 100%;">`;
+        textarea.value = textarea.value.substring(0, start) + imgHtml + textarea.value.substring(start);
+        textarea.focus();
+    }
 }
 </script>
 

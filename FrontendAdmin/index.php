@@ -116,16 +116,10 @@ $notifications_query = "
 ";
 $notifications = $db->query($notifications_query, [$_SESSION['admin_id']]) ?: [];
 
-// Đếm thông báo chưa đọc
-$unread_notifications = $db->querySingle(
-    "SELECT COUNT(*) as count FROM thong_bao WHERE (ma_qtv = ? OR ma_qtv IS NULL) AND trang_thai = 'chua_doc'",
-    [$_SESSION['admin_id']]
-)['count'] ?? 0;
-
-// Đếm tin nhắn chưa đọc
-$unread_messages = $db->querySingle(
-    "SELECT COUNT(*) as count FROM tin_nhan WHERE nguoi_nhan = ? AND trang_thai = 'chua_doc'",
-    [$_SESSION['admin_id']]
+// Đếm bình luận chờ duyệt
+$pending_comments = $db->querySingle(
+    "SELECT COUNT(*) as count FROM binh_luan WHERE trang_thai = 'cho_duyet'",
+    []
 )['count'] ?? 0;
 
 // Lấy nội dung xem nhiều nhất
@@ -2176,21 +2170,9 @@ a {text-decoration:none; color:inherit;}
                     <i class="fas fa-users"></i>
                     <span>Người dùng</span>
                 </div>
-                <div class="menu-item" onclick="location.href='thongbao.php'">
-                    <i class="fas fa-bell"></i>
-                    <span>Thông báo</span>
-                </div>
-                <div class="menu-item" onclick="location.href='tinnhan.php'">
+                <div class="menu-item" onclick="location.href='binhluan.php'">
                     <i class="fas fa-comments"></i>
-                    <span>Tin nhắn</span>
-                </div>
-                <div class="menu-item" onclick="location.href='hoatdong.php'">
-                    <i class="fas fa-history"></i>
-                    <span>Hoạt động</span>
-                </div>
-                <div class="menu-item" onclick="location.href='caidat.php'">
-                    <i class="fas fa-cog"></i>
-                    <span>Cài đặt</span>
+                    <span>Bình luận</span>
                 </div>
             </div>
 
@@ -2218,26 +2200,15 @@ a {text-decoration:none; color:inherit;}
                 </div>
             </div>
             <div class="topbar-right">
-                <!-- Notifications Icon -->
-                <div class="topbar-action-icon" onclick="toggleNotifications(event)">
+                <!-- Comments Icon -->
+                <div class="topbar-action-icon" onclick="location.href='binhluan.php'">
                     <div class="icon-wrapper">
-                        <i class="fas fa-bell"></i>
-                        <?php if($unread_notifications > 0): ?>
-                        <span class="notification-badge pulse"><?php echo $unread_notifications; ?></span>
+                        <i class="fas fa-comments"></i>
+                        <?php if($pending_comments > 0): ?>
+                        <span class="notification-badge pulse"><?php echo $pending_comments; ?></span>
                         <?php endif; ?>
                     </div>
-                    <span class="icon-label">Thông báo</span>
-                </div>
-
-                <!-- Messages Icon -->
-                <div class="topbar-action-icon" onclick="toggleMessages(event)">
-                    <div class="icon-wrapper">
-                        <i class="fas fa-envelope"></i>
-                        <?php if($unread_messages > 0): ?>
-                        <span class="notification-badge pulse"><?php echo $unread_messages; ?></span>
-                        <?php endif; ?>
-                    </div>
-                    <span class="icon-label">Tin nhắn</span>
+                    <span class="icon-label">Bình luận</span>
                 </div>
 
                 <!-- Divider -->
@@ -2406,108 +2377,6 @@ a {text-decoration:none; color:inherit;}
                         <div class="stat-trend <?php echo $stats['stories']['trend']; ?>">
                             <i class="fas fa-arrow-<?php echo $stats['stories']['trend']=='up'?'up':'down'; ?>"></i>
                             <?php echo $stats['stories']['change']; ?> tháng này
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- TWO COLUMNS LAYOUT -->
-            <div class="dashboard-grid">
-                <!-- LEFT COLUMN -->
-                <div class="dashboard-left">
-                    <!-- RECENT ACTIVITIES -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-clock"></i> Hoạt động gần đây</h3>
-                            <a href="hoatdong.php" style="font-size:0.9rem; color:#666;">Xem tất cả →</a>
-                        </div>
-                        <div class="activities-list">
-                            <?php if(empty($recent_activities)): ?>
-                            <div class="empty-state">
-                                <i class="fas fa-inbox"></i>
-                                <p>Chưa có hoạt động nào</p>
-                                <span>Các hoạt động sẽ hiển thị ở đây</span>
-                            </div>
-                            <?php else: ?>
-                                <?php foreach($recent_activities as $activity): ?>
-                                <div class="activity-item">
-                                    <div class="activity-icon" style="background:<?php echo $activity['color']; ?>;">
-                                        <i class="fas <?php echo $activity['icon']; ?>"></i>
-                                    </div>
-                                    <div class="activity-content">
-                                        <div class="activity-text">
-                                            <strong><?php echo $activity['user']; ?></strong> 
-                                            <?php echo $activity['action']; ?>: 
-                                            <span class="activity-item-name"><?php echo $activity['item']; ?></span>
-                                        </div>
-                                        <div class="activity-time"><?php echo $activity['time']; ?></div>
-                                    </div>
-                                </div>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- RIGHT COLUMN -->
-                <div class="dashboard-right">
-                    <!-- TOP CONTENT -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-fire"></i> Nội dung nổi bật</h3>
-                        </div>
-                        <div class="top-content-list">
-                            <?php if(empty($top_content)): ?>
-                            <div class="empty-state">
-                                <i class="fas fa-chart-bar"></i>
-                                <p>Chưa có dữ liệu thống kê</p>
-                                <span>Nội dung nổi bật sẽ hiển thị ở đây</span>
-                            </div>
-                            <?php else: ?>
-                                <?php foreach($top_content as $index => $content): ?>
-                                <div class="top-item">
-                                    <div class="top-rank">#<?php echo $index+1; ?></div>
-                                    <div class="top-info">
-                                        <div class="top-title"><?php echo $content['title']; ?></div>
-                                        <div class="top-meta">
-                                            <span class="top-type"><?php echo $content['type']; ?></span>
-                                            <span class="top-views"><i class="fas fa-eye"></i> <?php echo number_format($content['views']); ?></span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-
-                    <!-- QUICK STATS -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-chart-line"></i> Thống kê nhanh</h3>
-                        </div>
-                        <div class="quick-stats">
-                            <div class="quick-stat-item">
-                                <div class="quick-stat-label">Nội dung</div>
-                                <div class="quick-stat-value"><?php 
-                                    $total_content = $stats['articles']['count'] + $stats['temples']['count'] + 
-                                                    $stats['festivals']['count'] + $stats['stories']['count'];
-                                    echo number_format($total_content);
-                                ?></div>
-                            </div>
-                            <div class="quick-stat-item">
-                                <div class="quick-stat-label">Người dùng</div>
-                                <div class="quick-stat-value"><?php 
-                                    $total_users = $db->query("SELECT COUNT(*) as count FROM nguoi_dung")[0]['count'] ?? 0;
-                                    echo number_format($total_users);
-                                ?></div>
-                            </div>
-                            <div class="quick-stat-item">
-                                <div class="quick-stat-label">Bài học</div>
-                                <div class="quick-stat-value"><?php 
-                                    $total_lessons = $db->query("SELECT COUNT(*) as count FROM bai_hoc")[0]['count'] ?? 0;
-                                    echo number_format($total_lessons);
-                                ?></div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -2779,7 +2648,7 @@ function toggleNotifications(e) {
                     ${notifHTML}
                 </div>
                 <div class="dropdown-footer">
-                    <a href="thongbao.php">Xem tất cả thông báo →</a>
+                    <a href="binhluan.php">Xem tất cả bình luận →</a>
                 </div>
             `;
             
@@ -2883,7 +2752,7 @@ function toggleMessages(e) {
                     ${msgHTML}
                 </div>
                 <div class="dropdown-footer">
-                    <a href="tinnhan.php">Xem tất cả tin nhắn →</a>
+                    <a href="binhluan.php">Xem tất cả bình luận →</a>
                 </div>
             `;
             
@@ -2938,7 +2807,7 @@ function openMessage(messageId, link) {
         if(link && link !== '#') {
             window.location.href = link;
         } else {
-            window.location.href = 'tinnhan.php?id=' + messageId;
+            window.location.href = 'binhluan.php';
         }
     });
 }
@@ -2946,7 +2815,7 @@ function openMessage(messageId, link) {
 function composeMessage(e) {
     e.preventDefault();
     e.stopPropagation();
-    window.location.href = 'tinnhan.php?action=compose';
+    window.location.href = 'binhluan.php';
 }
 
 function updateMessageBadge() {
@@ -3013,18 +2882,6 @@ function toggleProfileMenu() {
             </div>
         </div>
         <div class="user-menu-body">
-            <div class="user-menu-item" onclick="location.href='caidat.php'">
-                <i class="fas fa-user-circle"></i>
-                <span>Thông tin cá nhân</span>
-            </div>
-            <div class="user-menu-item" onclick="location.href='caidat.php#account'">
-                <i class="fas fa-key"></i>
-                <span>Đổi mật khẩu</span>
-            </div>
-            <div class="user-menu-item" onclick="location.href='caidat.php'">
-                <i class="fas fa-cog"></i>
-                <span>Cấu hình hệ thống</span>
-            </div>
             <div class="user-menu-divider"></div>
             <div class="user-menu-item logout-item" onclick="logout()">
                 <i class="fas fa-sign-out-alt"></i>

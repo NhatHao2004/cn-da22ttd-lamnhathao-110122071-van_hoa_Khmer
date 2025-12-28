@@ -1,0 +1,13 @@
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="400" fill="url(#grad2)"/>
+  <circle cx="150" cy="200" r="80" fill="white" opacity="0.1"/>
+  <circle cx="650" cy="200" r="100" fill="white" opacity="0.1"/>
+  <text x="400" y="180" font-family="Arial, sans-serif" font-size="56" font-weight="bold" fill="white" text-anchor="middle">🎓 Học tiếng Khmer</text>
+  <text x="400" y="240" font-family="Arial, sans-serif" font-size="28" fill="white" text-anchor="middle" opacity="0.9">Khóa học cơ bản dành cho người mới bắt đầu</text>
+</svg>

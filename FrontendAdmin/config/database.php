@@ -84,10 +84,16 @@ class Database {
      */
     public function execute($sql, $params = []) {
         try {
+            error_log("SQL: " . $sql);
+            error_log("Params: " . json_encode($params));
             $stmt = $this->conn->prepare($sql);
-            return $stmt->execute($params);
+            $result = $stmt->execute($params);
+            error_log("Execute result: " . ($result ? "TRUE" : "FALSE"));
+            return $result;
         } catch(PDOException $e) {
             error_log("Database Execute Error: " . $e->getMessage());
+            error_log("SQL: " . $sql);
+            error_log("Params: " . json_encode($params));
             return false;
         }
     }

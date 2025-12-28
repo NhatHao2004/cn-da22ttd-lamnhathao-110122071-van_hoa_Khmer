@@ -16,9 +16,8 @@ class TruyenDanGian extends BaseModel {
     
     protected $fillable = [
         'tieu_de', 'tieu_de_khmer', 'slug', 'tom_tat', 'noi_dung',
-        'anh_dai_dien', 'the_loai', 'nguon_goc', 'tac_gia',
+        'anh_dai_dien', 'ma_danh_muc', 'tac_gia', 'nguon',
         'trang_thai', 'ma_nguoi_tao'
-        // 'ma_nguoi_cap_nhat' - Cột này chưa có trong database
     ];
     
     // Trạng thái

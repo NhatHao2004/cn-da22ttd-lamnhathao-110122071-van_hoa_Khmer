@@ -18,7 +18,8 @@ class ChuaKhmer extends BaseModel {
         'ten_chua', 'ten_tieng_khmer', 'slug', 'dia_chi', 'tinh_thanh', 'quan_huyen',
         'loai_chua', 'so_dien_thoai', 'email', 'website',
         'mo_ta_ngan', 'lich_su', 'hinh_anh_chinh', 'thu_vien_anh',
-        'nam_thanh_lap', 'so_nha_su', 'trang_thai', 'ma_nguoi_tao'
+        'nam_thanh_lap', 'so_nha_su', 'trang_thai', 'ma_nguoi_tao',
+        'kinh_do', 'vi_do'
     ];
     
     // Loại chùa

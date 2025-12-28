@@ -1,427 +1,381 @@
 <?php
 /**
- * Chi tiết Chùa Khmer - Frontend User
- * Văn Hóa Khmer Nam Bộ
+ * Chi tiết chùa Khmer - Unified Design
  */
+require_once __DIR__ . '/includes/header.php';
 
-session_start();
-require_once 'config/database.php';
+$id = intval($_GET['id'] ?? 0);
+if (!$id) redirect(BASE_URL . '/chua-khmer.php');
 
-$db = Database::getInstance();
-$id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$pdo = getDBConnection();
+$stmt = $pdo->prepare("SELECT * FROM chua_khmer WHERE ma_chua = ? AND trang_thai = 'hoat_dong'");
+$stmt->execute([$id]);
+$temple = $stmt->fetch();
 
-if(!$id) {
-    header('Location: chua-khmer.php');
-    exit;
+if (!$temple) redirect(BASE_URL . '/chua-khmer.php', 'Chùa không tồn tại.', 'warning');
+
+$pageTitle = $temple['ten_chua'];
+
+// Update view count
+$pdo->prepare("UPDATE chua_khmer SET luot_xem = luot_xem + 1 WHERE ma_chua = ?")->execute([$id]);
+
+// Get nearby temples
+$nearbyStmt = $pdo->prepare("SELECT * FROM chua_khmer WHERE ma_chua != ? AND tinh_thanh = ? AND trang_thai = 'hoat_dong' LIMIT 4");
+$nearbyStmt->execute([$id, $temple['tinh_thanh']]);
+$nearby = $nearbyStmt->fetchAll();
+
+// Comments setup
+$tableExists = false;
+$comments = [];
+$commentCount = 0;
+
+try {
+    $checkTable = $pdo->query("SHOW TABLES LIKE 'binh_luan'")->rowCount() > 0;
+    if ($checkTable) {
+        $columns = $pdo->query("SHOW COLUMNS FROM binh_luan LIKE 'loai_noi_dung'")->rowCount();
+        $tableExists = $columns > 0;
+    }
+    
+    if ($tableExists) {
+        $commentsStmt = $pdo->prepare("
+            SELECT bl.*, nd.ho_ten, nd.anh_dai_dien 
+            FROM binh_luan bl 
+            JOIN nguoi_dung nd ON bl.ma_nguoi_dung = nd.ma_nguoi_dung 
+            WHERE bl.loai_noi_dung = 'chua' AND bl.ma_noi_dung = ? AND bl.trang_thai = 'hien_thi' AND bl.ma_binh_luan_cha IS NULL
+            ORDER BY bl.ngay_tao DESC
+        ");
+        $commentsStmt->execute([$id]);
+        $comments = $commentsStmt->fetchAll();
+        
+        $totalComments = $pdo->prepare("SELECT COUNT(*) FROM binh_luan WHERE loai_noi_dung = 'chua' AND ma_noi_dung = ? AND trang_thai = 'hien_thi'");
+        $totalComments->execute([$id]);
+        $commentCount = $totalComments->fetchColumn();
+    }
+} catch (Exception $e) {
+    $tableExists = false;
 }
-
-// Lấy thông tin chùa
-$chua = $db->querySingle(
-    "SELECT * FROM chua_khmer WHERE id = ? AND trang_thai = 'hoat_dong'",
-    [$id]
-);
-
-if(!$chua) {
-    header('Location: chua-khmer.php');
-    exit;
-}
-
-// Tăng lượt xem
-$db->execute("UPDATE chua_khmer SET luot_xem = luot_xem + 1 WHERE id = ?", [$id]);
-
-// Lấy chùa gần đó (cùng tỉnh)
-$nearby = $db->query(
-    "SELECT * FROM chua_khmer 
-     WHERE id != ? AND tinh_thanh = ? AND trang_thai = 'hoat_dong'
-     ORDER BY luot_xem DESC 
-     LIMIT 3",
-    [$id, $chua['tinh_thanh']]
-);
-
-$pageTitle = $chua['ten_chua'];
-include 'includes/header.php';
 ?>
 
-<article class="temple-detail">
-    <!-- Temple Header -->
-    <section class="temple-header">
+<?php require_once __DIR__ . '/includes/navbar.php'; ?>
+
+<!-- Unified Detail Page Styles -->
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/detail-page-unified.css">
+
+<main class="detail-page">
+    <!-- Hero Section -->
+    <?php 
+    $imagePath = $temple['hinh_anh_chinh'];
+    if (strpos($imagePath, 'uploads/') === 0) {
+        $imageUrl = '/DoAn_ChuyenNganh/' . $imagePath;
+    } else {
+        $imageUrl = UPLOAD_PATH . 'chua/' . $imagePath;
+    }
+    ?>
+    <section class="detail-hero">
+        <!-- Image Container -->
+        <div class="detail-hero-image-wrapper">
+            <div class="detail-hero-image" style="background-image: url('<?= $imageUrl ?>');"></div>
+        </div>
+        
+        <!-- Content Below Image -->
+        <div class="detail-hero-info">
+            <div class="container">
+                <nav class="detail-breadcrumb">
+                    <a href="<?= BASE_URL ?>"><i class="fas fa-home"></i></a>
+                    <span>/</span>
+                    <a href="<?= BASE_URL ?>/chua-khmer.php"><?= __('nav_temples') ?></a>
+                    <span>/</span>
+                    <span><?= sanitize($temple['ten_chua']) ?></span>
+                </nav>
+                
+                <h1 class="detail-title">
+                    <?= sanitize($temple['ten_chua']) ?>
+                    <?php if (!empty($temple['ten_tieng_khmer'])): ?>
+                    <span class="detail-title-khmer"><?= $temple['ten_tieng_khmer'] ?></span>
+                    <?php endif; ?>
+                </h1>
+                
+                <p class="detail-location">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <?= sanitize($temple['dia_chi']) ?>
+                </p>
+                
+                <div class="detail-meta">
+                    <?php if ($temple['nam_thanh_lap']): ?>
+                    <span class="detail-badge">
+                        <i class="fas fa-calendar-alt"></i>
+                        Thành lập: <?= $temple['nam_thanh_lap'] ?>
+                    </span>
+                    <?php endif; ?>
+                    <?php if ($temple['tinh_thanh']): ?>
+                    <span class="detail-badge">
+                        <i class="fas fa-city"></i>
+                        <?= sanitize($temple['tinh_thanh']) ?>
+                    </span>
+                    <?php endif; ?>
+                    <span class="detail-badge">
+                        <i class="fas fa-eye"></i>
+                        <?= formatNumber($temple['luot_xem']) ?> lượt xem
+                    </span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <section class="detail-main-content">
         <div class="container">
-            <div class="temple-breadcrumb">
-                <a href="index.php"><i class="fas fa-home"></i> Trang chủ</a>
-                <i class="fas fa-chevron-right"></i>
-                <a href="chua-khmer.php">Chùa Khmer</a>
-                <i class="fas fa-chevron-right"></i>
-                <span><?php echo htmlspecialchars($chua['ten_chua']); ?></span>
+            <!-- Description -->
+            <div class="content-card">
+                <div class="content-card-header">
+                    <i class="fas fa-info-circle"></i>
+                    <h3>Giới thiệu</h3>
+                </div>
+                <div class="content-card-body">
+                    <div class="article-content">
+                        <?php if (!empty($temple['mo_ta_ngan'])): ?>
+                            <?= $temple['mo_ta_ngan'] ?>
+                        <?php else: ?>
+                            <p style="color: #94a3b8; font-style: italic;">Chưa có thông tin giới thiệu.</p>
+                        <?php endif; ?>
+                    </div>
+                </div>
             </div>
             
-            <div class="temple-header-content">
-                <div class="temple-badge">
-                    <i class="fas fa-dharmachakra"></i>
-                    <?php echo htmlspecialchars($chua['loai_chua'] ?: 'Chùa Khmer'); ?>
+            <!-- History -->
+            <div class="content-card">
+                <div class="content-card-header">
+                    <i class="fas fa-landmark"></i>
+                    <h3>Lịch sử</h3>
                 </div>
-                
-                <h1 class="temple-title"><?php echo htmlspecialchars($chua['ten_chua']); ?></h1>
-                <p class="temple-name-khmer"><?php echo htmlspecialchars($chua['ten_tieng_khmer']); ?></p>
-                
-                <div class="temple-quick-info">
-                    <div class="quick-info-item">
-                        <i class="fas fa-map-marker-alt"></i>
-                        <span><?php echo htmlspecialchars($chua['dia_chi'] . ', ' . $chua['tinh_thanh']); ?></span>
-                    </div>
-                    <?php if($chua['nam_xay_dung']): ?>
-                    <div class="quick-info-item">
-                        <i class="fas fa-calendar"></i>
-                        <span>Xây dựng năm <?php echo $chua['nam_xay_dung']; ?></span>
-                    </div>
-                    <?php endif; ?>
-                    <div class="quick-info-item">
-                        <i class="fas fa-eye"></i>
-                        <span><?php echo number_format($chua['luot_xem']); ?> lượt xem</span>
+                <div class="content-card-body">
+                    <div class="article-content">
+                        <?php if (!empty($temple['lich_su'])): ?>
+                            <?= $temple['lich_su'] ?>
+                        <?php else: ?>
+                            <p style="color: #94a3b8; font-style: italic;">Chưa có thông tin lịch sử.</p>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
-        </div>
-    </section>
-    
-    <!-- Temple Gallery -->
-    <?php if($chua['hinh_anh']): ?>
-    <section class="temple-gallery">
-        <div class="container">
-            <div class="main-image">
-                <img src="<?php echo $chua['hinh_anh']; ?>" 
-                     alt="<?php echo htmlspecialchars($chua['ten_chua']); ?>"
-                     class="gallery-image">
-            </div>
-        </div>
-    </section>
-    <?php endif; ?>
-    
-    <!-- Temple Content -->
-    <section class="temple-content-section">
-        <div class="container">
-            <div class="temple-layout">
-                <!-- Main Content -->
-                <div class="temple-main">
-                    <!-- Description -->
-                    <div class="content-card">
-                        <h2><i class="fas fa-info-circle"></i> Giới thiệu</h2>
-                        <div class="temple-description">
-                            <?php echo nl2br(htmlspecialchars($chua['mo_ta'])); ?>
+            
+            <!-- Map -->
+            <?php if ($temple['vi_do'] && $temple['kinh_do']): ?>
+            <div class="content-card">
+                <div class="content-card-header">
+                    <i class="fas fa-map-marked-alt"></i>
+                    <h3>Vị trí</h3>
+                </div>
+                <div class="content-card-body">
+                    <div class="map-wrapper">
+                        <div id="detail-map" 
+                             data-lat="<?= $temple['vi_do'] ?>" 
+                             data-lng="<?= $temple['kinh_do'] ?>"
+                             data-name="<?= sanitize($temple['ten_chua']) ?>">
                         </div>
                     </div>
-                    
-                    <!-- History -->
-                    <?php if($chua['lich_su']): ?>
-                    <div class="content-card">
-                        <h2><i class="fas fa-book-open"></i> Lịch sử</h2>
-                        <div class="temple-history">
-                            <?php echo nl2br(htmlspecialchars($chua['lich_su'])); ?>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-                    
-                    <!-- Architecture -->
-                    <?php if($chua['kien_truc']): ?>
-                    <div class="content-card">
-                        <h2><i class="fas fa-building"></i> Kiến trúc</h2>
-                        <div class="temple-architecture">
-                            <?php echo nl2br(htmlspecialchars($chua['kien_truc'])); ?>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-                    
-                    <!-- Map -->
-                    <?php if($chua['toa_do']): ?>
-                    <div class="content-card">
-                        <h2><i class="fas fa-map"></i> Bản đồ</h2>
-                        <div class="temple-map" id="templeMap"></div>
-                        <a href="https://www.google.com/maps/search/?api=1&query=<?php echo urlencode($chua['dia_chi'] . ', ' . $chua['tinh_thanh']); ?>" 
-                           target="_blank" 
-                           class="btn btn-primary"
-                           style="margin-top: 16px;">
+                    <div class="map-actions">
+                        <a href="https://www.google.com/maps/dir/?api=1&destination=<?= $temple['vi_do'] ?>,<?= $temple['kinh_do'] ?>" 
+                           target="_blank" class="map-action-btn primary">
                             <i class="fas fa-directions"></i>
-                            Chỉ đường trên Google Maps
+                            Chỉ đường
+                        </a>
+                        <a href="https://www.google.com/maps?q=<?= $temple['vi_do'] ?>,<?= $temple['kinh_do'] ?>" 
+                           target="_blank" class="map-action-btn secondary">
+                            <i class="fas fa-external-link-alt"></i>
+                            Google Maps
                         </a>
                     </div>
-                    <?php endif; ?>
                 </div>
-                
-                <!-- Sidebar -->
-                <aside class="temple-sidebar">
-                    <!-- Contact Info -->
-                    <div class="sidebar-card">
-                        <h3><i class="fas fa-phone"></i> Thông tin liên hệ</h3>
-                        <div class="contact-info">
-                            <?php if($chua['dien_thoai']): ?>
-                            <div class="contact-item">
-                                <i class="fas fa-phone"></i>
-                                <a href="tel:<?php echo $chua['dien_thoai']; ?>">
-                                    <?php echo htmlspecialchars($chua['dien_thoai']); ?>
-                                </a>
+            </div>
+            <?php endif; ?>
+            
+            <!-- Quiz Section -->
+            <?php 
+            $quiz_type = 'chua';
+            $content_id = $id;
+            include __DIR__ . '/includes/quiz-section.php';
+            ?>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons-row">
+                <button onclick="saveArticle(<?= $id ?>)" id="saveBtn" class="action-btn primary">
+                    <i class="far fa-bookmark" id="saveIcon"></i>
+                    <span id="saveText">Lưu chùa</span>
+                </button>
+                <button onclick="shareArticle()" class="action-btn outline">
+                    <i class="fas fa-share-alt"></i>
+                    Chia sẻ
+                </button>
+                <a href="<?= BASE_URL ?>/chua-khmer.php" class="action-btn outline">
+                    <i class="fas fa-list"></i>
+                    Xem tất cả
+                </a>
+            </div>
+            
+            <!-- Comments Section -->
+            <div class="content-card" id="comments-section">
+                <div class="content-card-header">
+                    <i class="fas fa-comments"></i>
+                    <h3>Bình luận (<?= $commentCount ?>)</h3>
+                </div>
+                <div class="content-card-body">
+                    <?php if ($tableExists): ?>
+                        <?php if (isLoggedIn()): ?>
+                        <div class="comment-form-wrapper">
+                            <div class="comment-form-avatar">
+                                <?php if (!empty($currentUser['anh_dai_dien'])): ?>
+                                <img src="<?= UPLOAD_PATH ?>avatar/<?= $currentUser['anh_dai_dien'] ?>" alt="">
+                                <?php else: ?>
+                                <?= strtoupper(mb_substr($currentUser['ho_ten'] ?? 'U', 0, 1)) ?>
+                                <?php endif; ?>
                             </div>
-                            <?php endif; ?>
-                            
-                            <div class="contact-item">
-                                <i class="fas fa-map-marker-alt"></i>
-                                <span><?php echo htmlspecialchars($chua['dia_chi']); ?></span>
-                            </div>
-                            
-                            <?php if($chua['email']): ?>
-                            <div class="contact-item">
-                                <i class="fas fa-envelope"></i>
-                                <a href="mailto:<?php echo $chua['email']; ?>">
-                                    <?php echo htmlspecialchars($chua['email']); ?>
-                                </a>
-                            </div>
-                            <?php endif; ?>
+                            <form class="comment-form" id="commentForm">
+                                <input type="hidden" name="loai_noi_dung" value="chua">
+                                <input type="hidden" name="ma_noi_dung" value="<?= $id ?>">
+                                <textarea name="noi_dung" id="commentContent" placeholder="Viết bình luận của bạn..." required></textarea>
+                                <button type="submit" class="comment-submit-btn">
+                                    <i class="fas fa-paper-plane"></i> Gửi bình luận
+                                </button>
+                            </form>
                         </div>
-                    </div>
+                        <?php else: ?>
+                        <div class="comment-login-prompt">
+                            <i class="fas fa-user-circle"></i>
+                            <p>Vui lòng <a href="<?= BASE_URL ?>/login.php">đăng nhập</a> để bình luận</p>
+                        </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
                     
-                    <!-- Share -->
-                    <div class="sidebar-card">
-                        <h3><i class="fas fa-share-alt"></i> Chia sẻ</h3>
-                        <div class="share-buttons-vertical">
-                            <button class="share-btn facebook" onclick="shareOnFacebook()">
-                                <i class="fab fa-facebook-f"></i> Facebook
-                            </button>
-                            <button class="share-btn twitter" onclick="shareOnTwitter()">
-                                <i class="fab fa-twitter"></i> Twitter
-                            </button>
-                            <button class="share-btn copy" onclick="copyLink()">
-                                <i class="fas fa-link"></i> Sao chép link
-                            </button>
+                    <div class="comments-list" id="commentsList">
+                        <?php if (!$tableExists): ?>
+                        <div class="no-comments">
+                            <i class="fas fa-database"></i>
+                            <p>Hệ thống bình luận đang được cập nhật.</p>
                         </div>
+                        <?php elseif (empty($comments)): ?>
+                        <div class="no-comments">
+                            <i class="far fa-comment-dots"></i>
+                            <p>Chưa có bình luận nào. Hãy là người đầu tiên bình luận!</p>
+                        </div>
+                        <?php else: ?>
+                        <?php foreach ($comments as $comment): ?>
+                        <div class="comment-item" data-id="<?= $comment['ma_binh_luan'] ?>">
+                            <div class="comment-avatar">
+                                <?php if (!empty($comment['anh_dai_dien'])): ?>
+                                <img src="<?= UPLOAD_PATH ?>avatar/<?= $comment['anh_dai_dien'] ?>" alt="">
+                                <?php else: ?>
+                                <?= strtoupper(mb_substr($comment['ho_ten'], 0, 1)) ?>
+                                <?php endif; ?>
+                            </div>
+                            <div class="comment-content">
+                                <div class="comment-header">
+                                    <span class="comment-author"><?= htmlspecialchars($comment['ho_ten']) ?></span>
+                                    <span class="comment-time"><?= timeAgo($comment['ngay_tao']) ?></span>
+                                </div>
+                                <div class="comment-text"><?= nl2br(htmlspecialchars($comment['noi_dung'])) ?></div>
+                                <div class="comment-actions">
+                                    <button class="comment-action-btn like-btn" onclick="likeComment(<?= $comment['ma_binh_luan'] ?>)">
+                                        <i class="far fa-heart"></i> <span><?= $comment['so_like'] ?></span>
+                                    </button>
+                                    <?php if (isLoggedIn()): ?>
+                                    <button class="comment-action-btn reply-btn" onclick="showReplyForm(<?= $comment['ma_binh_luan'] ?>)">
+                                        <i class="fas fa-reply"></i> Trả lời
+                                    </button>
+                                    <?php endif; ?>
+                                </div>
+                                
+                                <div class="reply-form-wrapper" id="replyForm-<?= $comment['ma_binh_luan'] ?>" style="display: none;">
+                                    <form class="reply-form" onsubmit="submitReply(event, <?= $comment['ma_binh_luan'] ?>)">
+                                        <textarea placeholder="Viết trả lời..." required></textarea>
+                                        <div class="reply-form-actions">
+                                            <button type="button" onclick="hideReplyForm(<?= $comment['ma_binh_luan'] ?>)">Hủy</button>
+                                            <button type="submit">Gửi</button>
+                                        </div>
+                                    </form>
+                                </div>
+                                
+                                <?php
+                                $replies = [];
+                                if ($tableExists) {
+                                    $repliesStmt = $pdo->prepare("SELECT bl.*, nd.ho_ten, nd.anh_dai_dien FROM binh_luan bl JOIN nguoi_dung nd ON bl.ma_nguoi_dung = nd.ma_nguoi_dung WHERE bl.ma_binh_luan_cha = ? AND bl.trang_thai = 'hien_thi' ORDER BY bl.ngay_tao ASC");
+                                    $repliesStmt->execute([$comment['ma_binh_luan']]);
+                                    $replies = $repliesStmt->fetchAll();
+                                }
+                                ?>
+                                <?php if (!empty($replies)): ?>
+                                <div class="comment-replies">
+                                    <?php foreach ($replies as $reply): ?>
+                                    <div class="comment-item reply">
+                                        <div class="comment-avatar small">
+                                            <?php if (!empty($reply['anh_dai_dien'])): ?>
+                                            <img src="<?= UPLOAD_PATH ?>avatar/<?= $reply['anh_dai_dien'] ?>" alt="">
+                                            <?php else: ?>
+                                            <?= strtoupper(mb_substr($reply['ho_ten'], 0, 1)) ?>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="comment-content">
+                                            <div class="comment-header">
+                                                <span class="comment-author"><?= htmlspecialchars($reply['ho_ten']) ?></span>
+                                                <span class="comment-time"><?= timeAgo($reply['ngay_tao']) ?></span>
+                                            </div>
+                                            <div class="comment-text"><?= nl2br(htmlspecialchars($reply['noi_dung'])) ?></div>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
                     </div>
-                </aside>
+                </div>
             </div>
-        </div>
-    </section>
-    
-    <!-- Nearby Temples -->
-    <?php if($nearby && count($nearby) > 0): ?>
-    <section class="nearby-section">
-        <div class="container">
-            <h2 class="section-title">Chùa gần đây</h2>
-            <div class="content-grid" style="grid-template-columns: repeat(3, 1fr);">
-                <?php foreach($nearby as $item): ?>
-                <article class="temple-card">
-                    <a href="chua-khmer-chi-tiet.php?id=<?php echo $item['id']; ?>" class="temple-image-wrapper">
-                        <img src="<?php echo $item['hinh_anh'] ?: 'assets/images/placeholder-temple.jpg'; ?>" 
-                             alt="<?php echo htmlspecialchars($item['ten_chua']); ?>" 
-                             class="temple-image">
+            
+            <!-- Nearby Temples -->
+            <?php if (!empty($nearby)): ?>
+            <div class="related-section">
+                <div class="related-header">
+                    <i class="fas fa-gopuram"></i>
+                    <h4>Chùa lân cận</h4>
+                </div>
+                <div class="related-grid">
+                    <?php foreach ($nearby as $item): 
+                        $relImg = $item['hinh_anh_chinh'];
+                        if (strpos($relImg, 'uploads/') === 0) {
+                            $relImgUrl = '/DoAn_ChuyenNganh/' . $relImg;
+                        } else {
+                            $relImgUrl = UPLOAD_PATH . 'chua/' . $relImg;
+                        }
+                    ?>
+                    <a href="<?= BASE_URL ?>/chua-khmer-chi-tiet.php?id=<?= $item['ma_chua'] ?>" class="related-card">
+                        <div class="related-card-image">
+                            <img src="<?= $relImgUrl ?>" alt="<?= sanitize($item['ten_chua']) ?>">
+                        </div>
+                        <div class="related-card-body">
+                            <div class="related-card-title"><?= sanitize($item['ten_chua']) ?></div>
+                            <div class="related-card-meta">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <?= sanitize($item['tinh_thanh']) ?>
+                            </div>
+                        </div>
                     </a>
-                    <div class="temple-body">
-                        <h3 class="temple-title">
-                            <a href="chua-khmer-chi-tiet.php?id=<?php echo $item['id']; ?>">
-                                <?php echo htmlspecialchars($item['ten_chua']); ?>
-                            </a>
-                        </h3>
-                        <p class="temple-name-khmer"><?php echo htmlspecialchars($item['ten_tieng_khmer']); ?></p>
-                        <div class="temple-stats">
-                            <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($item['tinh_thanh']); ?></span>
-                        </div>
-                    </div>
-                </article>
-                <?php endforeach; ?>
+                    <?php endforeach; ?>
+                </div>
             </div>
+            <?php endif; ?>
         </div>
     </section>
-    <?php endif; ?>
-</article>
+</main>
 
-<style>
-.temple-header {
-    padding: 120px 0 40px;
-    background: linear-gradient(135deg, #f59e0b, #d97706);
-    color: white;
-}
+<?php require_once __DIR__ . '/includes/footer.php'; ?>
 
-.temple-breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 24px;
-    font-size: 14px;
-}
+<!-- Unified Detail Page Scripts -->
+<script src="<?= BASE_URL ?>/assets/js/detail-page-unified.js"></script>
 
-.temple-breadcrumb a {
-    color: rgba(255,255,255,0.9);
-}
-
-.temple-breadcrumb i {
-    color: rgba(255,255,255,0.6);
-    font-size: 12px;
-}
-
-.temple-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: rgba(255,255,255,0.2);
-    backdrop-filter: blur(10px);
-    border-radius: 20px;
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 16px;
-}
-
-.temple-title {
-    font-size: 48px;
-    color: white;
-    margin-bottom: 12px;
-}
-
-.temple-name-khmer {
-    font-size: 24px;
-    font-style: italic;
-    opacity: 0.95;
-    margin-bottom: 24px;
-}
-
-.temple-quick-info {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 24px;
-}
-
-.quick-info-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.temple-gallery {
-    padding: 40px 0;
-    background: var(--gray-900);
-}
-
-.main-image {
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: var(--shadow-xl);
-}
-
-.gallery-image {
-    width: 100%;
-    max-height: 600px;
-    object-fit: cover;
-}
-
-.temple-content-section {
-    padding: 60px 0;
-}
-
-.temple-layout {
-    display: grid;
-    grid-template-columns: 1fr 350px;
-    gap: 40px;
-}
-
-.content-card {
-    background: white;
-    padding: 32px;
-    border-radius: 16px;
-    box-shadow: var(--shadow-md);
-    margin-bottom: 24px;
-}
-
-.content-card h2 {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;
-    color: var(--secondary);
-}
-
-.temple-description,
-.temple-history,
-.temple-architecture {
-    font-size: 16px;
-    line-height: 1.8;
-    color: var(--gray-700);
-}
-
-.temple-map {
-    width: 100%;
-    height: 400px;
-    background: var(--gray-200);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--gray-500);
-}
-
-.contact-info {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.contact-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    font-size: 15px;
-}
-
-.contact-item i {
-    color: var(--secondary);
-    margin-top: 2px;
-    width: 20px;
-}
-
-.contact-item a {
-    color: var(--primary);
-    font-weight: 500;
-}
-
-.share-buttons-vertical {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.share-buttons-vertical .share-btn {
-    width: 100%;
-    justify-content: center;
-}
-
-.nearby-section {
-    padding: 60px 0;
-    background: var(--gray-50);
-}
-
-@media (max-width: 768px) {
-    .temple-title {
-        font-size: 32px;
-    }
-    
-    .temple-layout {
-        grid-template-columns: 1fr;
-    }
-    
-    .content-grid {
-        grid-template-columns: 1fr !important;
-    }
-}
-</style>
-
-<script>
-function shareOnFacebook() {
-    window.open('https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(window.location.href), '_blank');
-}
-
-function shareOnTwitter() {
-    window.open('https://twitter.com/intent/tweet?url=' + encodeURIComponent(window.location.href) + '&text=' + encodeURIComponent(document.title), '_blank');
-}
-
-function copyLink() {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-        alert('Đã sao chép link!');
-    });
-}
-</script>
-
-<?php include 'includes/footer.php'; ?>
+<!-- Leaflet for Map -->
+<?php if ($temple['vi_do'] && $temple['kinh_do']): ?>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<?php endif; ?>

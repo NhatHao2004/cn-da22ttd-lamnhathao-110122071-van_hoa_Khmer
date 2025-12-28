@@ -1,0 +1,249 @@
+/**
+ * Responsive CSS - Văn hóa Khmer Nam Bộ
+ */
+
+/* ===== Large Screens (xl) ===== */
+@media (max-width: 1280px) {
+    .container {
+        max-width: 1024px;
+    }
+    
+    .hero-title {
+        font-size: 3rem;
+    }
+}
+
+/* ===== Medium Screens (lg) ===== */
+@media (max-width: 1024px) {
+    .container {
+        max-width: 768px;
+    }
+    
+    .navbar-menu {
+        display: none;
+    }
+    
+    .navbar-toggle {
+        display: block;
+    }
+    
+    .stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .feature-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .footer-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .grid-3 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+
+/* ===== Tablet Screens (md) ===== */
+@media (max-width: 768px) {
+    .container {
+        max-width: 100%;
+        padding: 0 1rem;
+    }
+    
+    .hero {
+        min-height: auto;
+        padding: 120px 0 80px;
+    }
+    
+    .hero-title {
+        font-size: 2.25rem;
+    }
+    
+    .hero-subtitle {
+        font-size: 1rem;
+    }
+    
+    .stats {
+        margin-top: -40px;
+        padding: 2rem 1.5rem;
+        gap: 1.5rem;
+    }
+    
+    .stat-number {
+        font-size: 2rem;
+    }
+    
+    .section {
+        padding: 3rem 0;
+    }
+    
+    .section-title {
+        font-size: 1.5rem;
+    }
+    
+    .feature-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .feature-card {
+        padding: 1.5rem;
+    }
+    
+    .festival-card {
+        flex-direction: column;
+    }
+    
+    .festival-date {
+        flex-direction: row;
+        gap: 0.5rem;
+        padding: 1rem;
+    }
+    
+    .footer-grid {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+    
+    .grid-2, .grid-3, .grid-4 {
+        grid-template-columns: 1fr;
+    }
+    
+    /* Mobile Navigation */
+    .navbar-menu {
+        position: fixed;
+        top: 70px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--white);
+        flex-direction: column;
+        padding: 1rem;
+        transform: translateX(-100%);
+        transition: transform var(--transition-normal);
+    }
+    
+    .navbar-menu.active {
+        display: flex;
+        transform: translateX(0);
+    }
+    
+    .nav-link {
+        padding: 1rem;
+        border-bottom: 1px solid var(--gray-100);
+    }
+}
+
+/* ===== Mobile Screens (sm) ===== */
+@media (max-width: 640px) {
+    html {
+        font-size: 14px;
+    }
+    
+    .hero-title {
+        font-size: 1.875rem;
+    }
+    
+    .hero-buttons {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .hero-btn-primary,
+    .hero-btn-secondary {
+        width: 100%;
+        text-align: center;
+    }
+    
+    .stats {
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        padding: 1.5rem 1rem;
+    }
+    
+    .stat-icon {
+        width: 50px;
+        height: 50px;
+        font-size: 1.25rem;
+    }
+    
+    .stat-number {
+        font-size: 1.5rem;
+    }
+    
+    .btn {
+        padding: 0.625rem 1.25rem;
+        font-size: 0.875rem;
+    }
+    
+    .btn-lg {
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .article-img {
+        height: 160px;
+    }
+    
+    .temple-card img {
+        height: 200px;
+    }
+    
+    .modal {
+        width: 95%;
+        margin: 1rem;
+    }
+    
+    .tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .tab-btn {
+        white-space: nowrap;
+        padding: 0.5rem 1rem;
+    }
+}
+
+/* ===== Extra Small Screens ===== */
+@media (max-width: 375px) {
+    .navbar-brand span {
+        display: none;
+    }
+    
+    .stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .hero-title {
+        font-size: 1.5rem;
+    }
+}
+
+/* ===== Print Styles ===== */
+@media print {
+    .navbar,
+    .footer,
+    .btn,
+    .toast-container {
+        display: none !important;
+    }
+    
+    body {
+        background: white;
+        color: black;
+    }
+    
+    .container {
+        max-width: 100%;
+    }
+}

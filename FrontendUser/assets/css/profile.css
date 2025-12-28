@@ -1,0 +1,302 @@
+/**
+ * Profile Page Styles - Modern Design 2024
+ * Glassmorphism & Gradient Effects
+ */
+
+/* ===== Base Variables ===== */
+:root {
+    --profile-primary: #667eea;
+    --profile-secondary: #764ba2;
+    --profile-accent: #f093fb;
+    --profile-success: #10b981;
+    --profile-warning: #f59e0b;
+    --profile-danger: #ef4444;
+    --profile-dark: #1e293b;
+    --profile-gray: #64748b;
+    --profile-light: #f8fafc;
+}
+
+/* ===== Animations ===== */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+/* ===== Profile Page Container ===== */
+.profile-page {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+/* ===== Profile Main Card Animation ===== */
+.profile-main-card {
+    animation: fadeInUp 0.8s ease-out 0.2s both;
+}
+
+/* ===== Section Cards Animation ===== */
+.section-card {
+    animation: fadeInUp 0.6s ease-out both;
+}
+
+.profile-left-column .section-card:nth-child(1) { animation-delay: 0.3s; }
+.profile-left-column .section-card:nth-child(2) { animation-delay: 0.4s; }
+.profile-left-column .section-card:nth-child(3) { animation-delay: 0.5s; }
+
+.profile-right-column .section-card:nth-child(1) { animation-delay: 0.35s; }
+.profile-right-column .section-card:nth-child(2) { animation-delay: 0.45s; }
+.profile-right-column .section-card:nth-child(3) { animation-delay: 0.55s; }
+
+/* ===== Badge Card Hover Effects ===== */
+.badge-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.badge-card::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+        45deg,
+        transparent,
+        rgba(255, 255, 255, 0.1),
+        transparent
+    );
+    transform: rotate(45deg);
+    transition: all 0.6s ease;
+    opacity: 0;
+}
+
+.badge-card:hover::before {
+    animation: shine 0.6s ease;
+}
+
+@keyframes shine {
+    0% { left: -50%; opacity: 1; }
+    100% { left: 150%; opacity: 0; }
+}
+
+/* ===== Stat Item Counter Animation ===== */
+.stat-number {
+    transition: all 0.3s ease;
+}
+
+.profile-stat-item:hover .stat-number {
+    transform: scale(1.1);
+    color: var(--profile-primary);
+}
+
+/* ===== Progress Bar Animation ===== */
+.level-progress-fill,
+.progress-bar-fill {
+    animation: progressGrow 1.5s ease-out;
+}
+
+@keyframes progressGrow {
+    from { width: 0; }
+}
+
+/* ===== Avatar Glow Effect ===== */
+.profile-avatar {
+    position: relative;
+}
+
+.profile-avatar-wrapper::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border-radius: 35px;
+    background: linear-gradient(135deg, var(--profile-primary), var(--profile-secondary), var(--profile-accent));
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    filter: blur(15px);
+}
+
+.profile-avatar-wrapper:hover::after {
+    opacity: 0.5;
+}
+
+/* ===== Button Ripple Effect ===== */
+.profile-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.profile-btn::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.3) 10%, transparent 10.01%);
+    background-repeat: no-repeat;
+    background-position: 50%;
+    transform: scale(10, 10);
+    opacity: 0;
+    transition: transform 0.5s, opacity 0.5s;
+}
+
+.profile-btn:active::after {
+    transform: scale(0, 0);
+    opacity: 0.3;
+    transition: 0s;
+}
+
+/* ===== Activity Item Slide Effect ===== */
+.activity-item {
+    position: relative;
+}
+
+.activity-item::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 4px;
+    background: linear-gradient(180deg, var(--profile-primary), var(--profile-secondary));
+    border-radius: 0 4px 4px 0;
+    transform: scaleY(0);
+    transition: transform 0.3s ease;
+}
+
+.activity-item:hover::after {
+    transform: scaleY(1);
+}
+
+/* ===== Saved Item Image Overlay ===== */
+.saved-image-wrapper {
+    position: relative;
+}
+
+.saved-image-wrapper::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+    border-radius: 14px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.saved-item:hover .saved-image-wrapper::after {
+    opacity: 1;
+}
+
+/* ===== Quick Action Button Glow ===== */
+.quick-action-btn {
+    position: relative;
+}
+
+.quick-action-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--profile-primary), var(--profile-secondary));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: -1;
+    filter: blur(10px);
+}
+
+.quick-action-btn:hover::before {
+    opacity: 0.3;
+}
+
+/* ===== Level Badge Pulse ===== */
+.profile-level-badge {
+    animation: pulse 2s infinite;
+}
+
+/* ===== Empty State Icon Float ===== */
+.empty-state-icon {
+    animation: float 3s ease-in-out infinite;
+}
+
+/* ===== Scrollbar Styling ===== */
+.profile-page ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.profile-page ::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+.profile-page ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--profile-primary), var(--profile-secondary));
+    border-radius: 4px;
+}
+
+.profile-page ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, var(--profile-secondary), var(--profile-accent));
+}
+
+/* ===== Focus States for Accessibility ===== */
+.profile-btn:focus,
+.quick-action-btn:focus,
+.saved-item:focus,
+.badge-card:focus {
+    outline: 3px solid rgba(102, 126, 234, 0.5);
+    outline-offset: 2px;
+}
+
+/* ===== Print Styles ===== */
+@media print {
+    .profile-hero {
+        background: #667eea !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    .profile-actions,
+    .quick-actions-grid,
+    .profile-avatar-edit {
+        display: none !important;
+    }
+    
+    .profile-main-card,
+    .section-card {
+        box-shadow: none !important;
+        border: 1px solid #e2e8f0;
+    }
+}
+
+/* ===== Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ===== Dark Mode Support (Future) ===== */
+@media (prefers-color-scheme: dark) {
+    /* Dark mode styles can be added here */
+}

@@ -1,534 +1,456 @@
 <?php
 /**
- * Trang đăng nhập - Frontend User
- * Văn Hóa Khmer Nam Bộ
+ * Trang đăng nhập - Unified Design
  */
+require_once __DIR__ . '/includes/header.php';
+$pageTitle = __('login');
 
-session_start();
-
-// Nếu đã đăng nhập, chuyển về trang chủ
-if(isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit;
+// Redirect if already logged in
+if (isLoggedIn()) {
+    redirect(BASE_URL . '/index.php');
 }
 
-require_once 'config/database.php';
-
-$pageTitle = 'Đăng nhập';
 $error = '';
-$success = '';
 
-// Xử lý đăng nhập
-if($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $remember = isset($_POST['remember']);
-    
-    // Validation
-    if(empty($email) || empty($password)) {
-        $error = 'Vui lòng nhập đầy đủ thông tin';
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        $error = __('session_expired');
     } else {
-        $db = Database::getInstance();
+        $tenDangNhap = sanitize($_POST['ten_dang_nhap'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $remember = isset($_POST['remember']);
         
-        // Tìm user theo email
-        $user = $db->querySingle(
-            "SELECT * FROM nguoi_dung WHERE email = ? AND vai_tro = 'hoc_vien'",
-            [$email]
-        );
-        
-        if($user && password_verify($password, $user['mat_khau'])) {
-            // Kiểm tra trạng thái
-            if($user['trang_thai'] !== 'hoat_dong') {
-                $error = 'Tài khoản của bạn đã bị khóa';
-            } else {
-                // Đăng nhập thành công
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['ho_ten'] = $user['ho_ten'];
-                $_SESSION['email'] = $user['email'];
-                $_SESSION['avatar'] = $user['avatar'];
+        if (empty($tenDangNhap) || empty($password)) {
+            $error = __('fill_all_info');
+        } else {
+            $pdo = getDBConnection();
+            $stmt = $pdo->prepare("SELECT * FROM nguoi_dung WHERE ten_dang_nhap = ? AND trang_thai = 'hoat_dong'");
+            $stmt->execute([$tenDangNhap]);
+            $user = $stmt->fetch();
+            
+            if ($user && password_verify($password, $user['mat_khau'])) {
+                // Regenerate session ID to prevent session fixation
+                session_regenerate_id(true);
                 
-                // Cập nhật lần đăng nhập cuối
-                $db->execute(
-                    "UPDATE nguoi_dung SET lan_dang_nhap_cuoi = NOW() WHERE id = ?",
-                    [$user['id']]
-                );
+                // Lưu session theo cả 2 cách để đảm bảo tương thích
+                $_SESSION['user_id'] = $user['ma_nguoi_dung'];
+                $_SESSION['user_name'] = $user['ho_ten'];
+                $_SESSION['logged_in'] = true;
                 
-                // Remember me
-                if($remember) {
-                    $token = bin2hex(random_bytes(32));
-                    setcookie('remember_token', $token, time() + (86400 * 30), '/');
-                    
-                    $db->execute(
-                        "UPDATE nguoi_dung SET remember_token = ? WHERE id = ?",
-                        [$token, $user['id']]
-                    );
+                // Lưu thông tin user đầy đủ (cho các API cần)
+                $_SESSION['user'] = [
+                    'ma_nguoi_dung' => $user['ma_nguoi_dung'],
+                    'ten_dang_nhap' => $user['ten_dang_nhap'],
+                    'ho_ten' => $user['ho_ten'],
+                    'email' => $user['email'],
+                    'anh_dai_dien' => $user['anh_dai_dien'],
+                    'tong_diem' => $user['tong_diem'],
+                    'cap_do' => $user['cap_do']
+                ];
+                
+                $stmt = $pdo->prepare("UPDATE nguoi_dung SET lan_dang_nhap_cuoi = NOW() WHERE ma_nguoi_dung = ?");
+                $stmt->execute([$user['ma_nguoi_dung']]);
+                
+                // Log activity (optional - comment out if causing issues)
+                try {
+                    logActivity($user['ma_nguoi_dung'], 'login', 'Đăng nhập thành công');
+                } catch (Exception $e) {
+                    // Ignore logging errors
                 }
                 
-                // Redirect
-                $redirect = $_GET['redirect'] ?? 'index.php';
-                header('Location: ' . $redirect);
+                // Set success message and redirect
+                $_SESSION['flash_message'] = __('login_success');
+                $_SESSION['flash_type'] = 'success';
+                
+                header('Location: ' . BASE_URL . '/index.php');
                 exit;
+            } else {
+                $error = __('wrong_credentials');
             }
-        } else {
-            $error = 'Email hoặc mật khẩu không chính xác';
         }
     }
 }
-
-include 'includes/header.php';
 ?>
-
-<section class="auth-section">
+<!DOCTYPE html>
+<html lang="<?= getCurrentLang() ?>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= __('login') ?> - <?= __('site_name') ?></title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+        }
+        
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            background: #ffffff;
+        }
+        
+        .auth-wrapper {
+            width: 100%;
+            max-width: 480px;
+        }
+        
+        .auth-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .auth-logo {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .auth-title {
+            font-size: 2rem;
+            font-weight: 900;
+            color: #000000;
+            margin-bottom: 0.5rem;
+        }
+        
+        .auth-subtitle {
+            font-size: 1rem;
+            color: #64748b;
+            font-weight: 600;
+        }
+        
+        .auth-card {
+            background: white;
+            border-radius: 15px;
+            padding: 2.5rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            border: 2px solid #000000;
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.9375rem;
+            font-weight: 600;
+        }
+        
+        .alert-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+            border: 2px solid #dc2626;
+        }
+        
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 0.9375rem;
+            font-weight: 700;
+            color: #000000;
+            margin-bottom: 0.5rem;
+        }
+        
+        .input-wrapper {
+            position: relative;
+        }
+        
+        .input-wrapper i {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #000000;
+            font-weight: 600;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem 0.875rem 3rem;
+            border: 2px solid #000000;
+            border-radius: 12px;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            background: #ffffff;
+            color: #000000;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #000000;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .form-input::placeholder {
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        
+        .form-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+        }
+        
+        .checkbox-wrapper input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: #000000;
+            cursor: pointer;
+        }
+        
+        .checkbox-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #000000;
+            cursor: pointer;
+        }
+        
+        .forgot-link {
+            font-size: 0.875rem;
+            color: #000000;
+            text-decoration: none;
+            font-weight: 700;
+            transition: all 0.3s ease;
+        }
+        
+        .forgot-link:hover {
+            text-decoration: underline;
+        }
+        
+        .btn-submit {
+            width: 100%;
+            padding: 0.875rem 1.5rem;
+            background: #ffffff;
+            color: #000000;
+            border: 2px solid #000000;
+            border-radius: 12px;
+            font-size: 0.9375rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-submit:hover {
+            background: #000000;
+            color: #ffffff;
+            transform: translateY(-2px);
+        }
+        
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 1.5rem 0;
+            color: #64748b;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 2px;
+            background: #e2e8f0;
+        }
+        
+        .divider span {
+            padding: 0 1rem;
+        }
+        
+        .social-buttons {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .btn-social {
+            flex: 1;
+            padding: 0.75rem;
+            border: 2px solid #000000;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-weight: 700;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+            color: #000000;
+        }
+        
+        .btn-social:hover {
+            background: #000000;
+            color: #ffffff;
+        }
+        
+        .btn-social.google i { color: #ea4335; }
+        .btn-social.facebook i { color: #1877f2; }
+        
+        .btn-social:hover i {
+            color: #ffffff;
+        }
+        
+        .auth-footer {
+            text-align: center;
+            margin-top: 1.5rem;
+            color: #64748b;
+            font-size: 0.9375rem;
+            font-weight: 600;
+        }
+        
+        .auth-footer a {
+            color: #000000;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .back-home {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            padding: 0.75rem 1.25rem;
+            background: #ffffff;
+            color: #000000;
+            border: 2px solid #000000;
+            border-radius: 12px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+        }
+        
+        .back-home:hover {
+            background: #000000;
+            color: #ffffff;
+        }
+        
+        @media (max-width: 640px) {
+            .auth-container {
+                padding: 1.5rem;
+            }
+            
+            .auth-card {
+                padding: 2rem 1.5rem;
+            }
+            
+            .auth-title {
+                font-size: 1.75rem;
+            }
+            
+            .social-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
     <div class="auth-container">
-        <div class="auth-card">
+        <div class="auth-wrapper">
+            <a href="<?= BASE_URL ?>/index.php" class="back-home">
+                <i class="fas fa-arrow-left"></i> <?= __('home') ?? 'Trang chủ' ?>
+            </a>
+            
             <div class="auth-header">
-                <div class="auth-icon">
-                    <i class="fas fa-dharmachakra"></i>
-                </div>
-                <h1>Đăng nhập</h1>
-                <p>Chào mừng trở lại! Đăng nhập để tiếp tục học tập</p>
+                <div class="auth-logo">🏛️</div>
+                <h1 class="auth-title"><?= __('login') ?? 'Đăng nhập' ?></h1>
+                <p class="auth-subtitle"><?= __('welcome_back') ?? 'Chào mừng bạn trở lại' ?></p>
             </div>
             
-            <?php if($error): ?>
-                <div class="alert alert-error">
+            <div class="auth-card">
+                <?php if ($error): ?>
+                <div class="alert alert-danger">
                     <i class="fas fa-exclamation-circle"></i>
-                    <?php echo $error; ?>
+                    <?= $error ?>
                 </div>
-            <?php endif; ?>
-            
-            <?php if($success): ?>
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i>
-                    <?php echo $success; ?>
-                </div>
-            <?php endif; ?>
-            
-            <form method="POST" class="auth-form" id="loginForm">
-                <div class="form-group">
-                    <label for="email">
-                        <i class="fas fa-envelope"></i>
-                        Email
-                    </label>
-                    <input 
-                        type="email" 
-                        id="email" 
-                        name="email" 
-                        placeholder="example@email.com"
-                        value="<?php echo htmlspecialchars($email ?? ''); ?>"
-                        required
-                    >
-                </div>
+                <?php endif; ?>
                 
-                <div class="form-group">
-                    <label for="password">
-                        <i class="fas fa-lock"></i>
-                        Mật khẩu
-                    </label>
-                    <div class="password-input">
-                        <input 
-                            type="password" 
-                            id="password" 
-                            name="password" 
-                            placeholder="••••••••"
-                            required
-                        >
-                        <button type="button" class="toggle-password" onclick="togglePassword('password')">
-                            <i class="fas fa-eye"></i>
-                        </button>
+                <form method="POST" action="">
+                    <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                    
+                    <div class="form-group">
+                        <label class="form-label"><?= __('username') ?? 'Tên đăng nhập' ?></label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-user"></i>
+                            <input type="text" name="ten_dang_nhap" class="form-input" 
+                                   placeholder="<?= __('username') ?? 'Tên đăng nhập' ?>" required
+                                   value="<?= sanitize($_POST['ten_dang_nhap'] ?? '') ?>">
+                        </div>
                     </div>
-                </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label"><?= __('password') ?? 'Mật khẩu' ?></label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-lock"></i>
+                            <input type="password" name="password" class="form-input" 
+                                   placeholder="••••••••" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-options">
+                        <label class="checkbox-wrapper">
+                            <input type="checkbox" name="remember">
+                            <span class="checkbox-label"><?= __('remember_me') ?? 'Ghi nhớ' ?></span>
+                        </label>
+                        <a href="<?= BASE_URL ?>/forgot-password.php" class="forgot-link">
+                            <?= __('forgot_password') ?? 'Quên mật khẩu?' ?>
+                        </a>
+                    </div>
+                    
+                    <button type="submit" class="btn-submit">
+                        <i class="fas fa-sign-in-alt"></i>
+                        <?= __('login') ?? 'Đăng nhập' ?>
+                    </button>
+                </form>
                 
-                <div class="form-row">
-                    <label class="checkbox-label">
-                        <input type="checkbox" name="remember">
-                        <span>Ghi nhớ đăng nhập</span>
-                    </label>
-                    <a href="forgot-password.php" class="text-link">Quên mật khẩu?</a>
-                </div>
+                <div class="divider"><span><?= __('or') ?? 'Hoặc' ?></span></div>
                 
-                <button type="submit" class="btn btn-primary btn-block">
-                    <i class="fas fa-sign-in-alt"></i>
-                    Đăng nhập
-                </button>
-            </form>
-            
-            <div class="auth-divider">
-                <span>Hoặc đăng nhập với</span>
-            </div>
-            
-            <div class="social-login">
-                <button class="btn-social btn-google" onclick="alert('Tính năng đang phát triển')">
-                    <i class="fab fa-google"></i>
-                    Google
-                </button>
-                <button class="btn-social btn-facebook" onclick="alert('Tính năng đang phát triển')">
-                    <i class="fab fa-facebook-f"></i>
-                    Facebook
-                </button>
+                <div class="social-buttons">
+                    <button class="btn-social google">
+                        <i class="fab fa-google"></i> Google
+                    </button>
+                    <button class="btn-social facebook">
+                        <i class="fab fa-facebook-f"></i> Facebook
+                    </button>
+                </div>
             </div>
             
             <div class="auth-footer">
-                <p>Chưa có tài khoản? <a href="register.php">Đăng ký ngay</a></p>
-            </div>
-        </div>
-        
-        <!-- Auth Side Banner -->
-        <div class="auth-banner">
-            <div class="auth-banner-content">
-                <h2>Khám phá Văn Hóa Khmer</h2>
-                <p>Tham gia cộng đồng để học tiếng Khmer, khám phá chùa chiền, lễ hội và bảo tồn văn hóa truyền thống</p>
-                <div class="auth-banner-features">
-                    <div class="feature">
-                        <i class="fas fa-graduation-cap"></i>
-                        <span>Học tiếng Khmer miễn phí</span>
-                    </div>
-                    <div class="feature">
-                        <i class="fas fa-trophy"></i>
-                        <span>Nhận huy hiệu & điểm thưởng</span>
-                    </div>
-                    <div class="feature">
-                        <i class="fas fa-users"></i>
-                        <span>Kết nối cộng đồng</span>
-                    </div>
-                </div>
+                <?= __('no_account') ?? 'Chưa có tài khoản?' ?> 
+                <a href="<?= BASE_URL ?>/register.php"><?= __('register') ?? 'Đăng ký ngay' ?></a>
             </div>
         </div>
     </div>
-</section>
-
-<style>
-.auth-section {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 120px 24px 40px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    position: relative;
-}
-
-.auth-section::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: url('data:image/svg+xml,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse"><path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100%" height="100%" fill="url(%23grid)"/></svg>');
-    opacity: 0.3;
-}
-
-.auth-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0;
-    max-width: 1000px;
-    width: 100%;
-    background: white;
-    border-radius: 20px;
-    overflow: hidden;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    position: relative;
-    z-index: 1;
-}
-
-.auth-card {
-    padding: 48px;
-}
-
-.auth-header {
-    text-align: center;
-    margin-bottom: 32px;
-}
-
-.auth-icon {
-    width: 80px;
-    height: 80px;
-    margin: 0 auto 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, var(--primary), var(--primary-light));
-    border-radius: 20px;
-    font-size: 36px;
-    color: white;
-}
-
-.auth-header h1 {
-    font-size: 28px;
-    margin-bottom: 8px;
-}
-
-.auth-header p {
-    color: var(--gray-600);
-    font-size: 14px;
-}
-
-.alert {
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 24px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 14px;
-}
-
-.alert-error {
-    background: #fee;
-    color: var(--danger);
-    border: 1px solid #fcc;
-}
-
-.alert-success {
-    background: #efe;
-    color: var(--success);
-    border: 1px solid #cfc;
-}
-
-.auth-form {
-    margin-bottom: 24px;
-}
-
-.form-group {
-    margin-bottom: 20px;
-}
-
-.form-group label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 500;
-    margin-bottom: 8px;
-    color: var(--gray-700);
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-    width: 100%;
-    padding: 12px 16px;
-    border: 2px solid var(--gray-200);
-    border-radius: 8px;
-    font-size: 15px;
-    transition: var(--transition-base);
-}
-
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-}
-
-.password-input {
-    position: relative;
-}
-
-.toggle-password {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
-    color: var(--gray-500);
-    cursor: pointer;
-    padding: 4px;
-}
-
-.form-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 24px;
-}
-
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    font-size: 14px;
-}
-
-.text-link {
-    color: var(--primary);
-    font-size: 14px;
-    font-weight: 500;
-}
-
-.text-link:hover {
-    text-decoration: underline;
-}
-
-.btn-block {
-    width: 100%;
-}
-
-.auth-divider {
-    text-align: center;
-    margin: 24px 0;
-    position: relative;
-}
-
-.auth-divider::before,
-.auth-divider::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    width: 40%;
-    height: 1px;
-    background: var(--gray-200);
-}
-
-.auth-divider::before { left: 0; }
-.auth-divider::after { right: 0; }
-
-.auth-divider span {
-    background: white;
-    padding: 0 16px;
-    color: var(--gray-500);
-    font-size: 14px;
-}
-
-.social-login {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 24px;
-}
-
-.btn-social {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px;
-    border: 2px solid var(--gray-200);
-    border-radius: 8px;
-    background: white;
-    font-weight: 500;
-    transition: var(--transition-base);
-}
-
-.btn-social:hover {
-    border-color: var(--gray-300);
-    background: var(--gray-50);
-}
-
-.btn-google { color: #EA4335; }
-.btn-facebook { color: #1877F2; }
-
-.auth-footer {
-    text-align: center;
-    padding-top: 24px;
-    border-top: 1px solid var(--gray-200);
-}
-
-.auth-footer a {
-    color: var(--primary);
-    font-weight: 600;
-}
-
-.auth-banner {
-    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-    padding: 48px;
-    display: flex;
-    align-items: center;
-    color: white;
-    position: relative;
-    overflow: hidden;
-}
-
-.auth-banner::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
-    background-size: 30px 30px;
-}
-
-.auth-banner-content {
-    position: relative;
-    z-index: 1;
-}
-
-.auth-banner h2 {
-    font-size: 32px;
-    color: white;
-    margin-bottom: 16px;
-}
-
-.auth-banner p {
-    font-size: 16px;
-    line-height: 1.6;
-    opacity: 0.95;
-    margin-bottom: 32px;
-}
-
-.auth-banner-features {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.auth-banner-features .feature {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 15px;
-}
-
-.auth-banner-features .feature i {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 10px;
-    font-size: 18px;
-}
-
-@media (max-width: 768px) {
-    .auth-container {
-        grid-template-columns: 1fr;
-    }
-    
-    .auth-card {
-        padding: 32px 24px;
-    }
-    
-    .auth-banner {
-        display: none;
-    }
-    
-    .social-login {
-        grid-template-columns: 1fr;
-    }
-}
-</style>
-
-<script>
-function togglePassword(inputId) {
-    const input = document.getElementById(inputId);
-    const button = input.parentElement.querySelector('.toggle-password i');
-    
-    if(input.type === 'password') {
-        input.type = 'text';
-        button.classList.remove('fa-eye');
-        button.classList.add('fa-eye-slash');
-    } else {
-        input.type = 'password';
-        button.classList.remove('fa-eye-slash');
-        button.classList.add('fa-eye');
-    }
-}
-</script>
-
-<?php include 'includes/footer.php'; ?>
+</body>
+</html>
