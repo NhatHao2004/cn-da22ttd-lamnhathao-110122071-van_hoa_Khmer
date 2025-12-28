@@ -1,94 +1,181 @@
-# 🏛️ Frontend User - Văn hóa Khmer Nam Bộ
+# 🏛️ Văn Hóa Khmer Nam Bộ
+# 🏛️ វប្បធម៌ខ្មែរតំបន់ភាគខាងត្បូង
 
-Giao diện người dùng cho nền tảng số hóa và bảo tồn văn hóa Khmer Nam Bộ.
+<div align="center">
 
-## 📁 Cấu trúc thư mục
+**Nền tảng số hóa & bảo tồn văn hóa Khmer Nam Bộ**
+
+**វេទិកាឌីជីថលសម្រាប់ការអភិរក្ស និងផ្សព្វផ្សាយវប្បធម៌ខ្មែរ ភាគខាងត្បូង**
+
+[🌐 Demo](#-demo) • [🚀 Cài đặt](#-cài-đặt--ការដំឡើង) • [✨ Tính năng](#-tính-năng--មុខងារ) • [📞 Liên hệ](#-liên-hệ--ទំនាក់ទំនង)
+
+</div>
+
+---
+
+## 📌 Giới Thiệu | ការណែនាំ
+
+### 🇻🇳 Tiếng Việt
+
+**Văn Hóa Khmer Nam Bộ** là đồ án chuyên ngành nhằm xây dựng một website giới thiệu, tra cứu và học tập về các giá trị văn hóa truyền thống của đồng bào Khmer tại khu vực Nam Bộ Việt Nam.
+
+Hệ thống tập trung số hóa:
+- 🏛️ Chùa Khmer
+- 🎉 Lễ hội truyền thống
+- 📖 Truyện dân gian
+- 📚 Học tiếng Khmer
+- 🗺️ Bản đồ di sản văn hóa
+
+> Mục tiêu của dự án là **bảo tồn, lan tỏa bản sắc văn hóa Khmer** trong thời đại công nghệ số.
+
+### 🇰🇭 ភាសាខ្មែរ
+
+គម្រោង **វប្បធម៌ខ្មែរតំបន់ភាគខាងត្បូង** គឺជាការស្រាវជ្រាវ និងអភិវឌ្ឍន៍គេហទំព័រ ដើម្បីណែនាំ សិក្សា និងស្វែងយល់អំពីវប្បធម៌ប្រពៃណីរបស់ជនជាតិខ្មែរ នៅតំបន់ភាគខាងត្បូងនៃប្រទេសវៀតណាម។
+
+ប្រព័ន្ធផ្តោតលើការឌីជីថលកម្ម៖
+- 🏛️ វត្តខ្មែរ
+- 🎉 ពិធីបុណ្យប្រពៃណី
+- 📖 រឿងព្រេងប្រជាប្រិយ
+- 📚 ការសិក្សាភាសាខ្មែរ
+- 🗺️ ផែនទីបេតិកភណ្ឌវប្បធម៌
+
+> គម្រោងនេះមានគោលបំណង **អភិរក្ស និងផ្សព្វផ្សាយអត្តសញ្ញាណវប្បធម៌ខ្មែរ** ក្នុងសម័យឌីជីថល។
+
+---
+
+## 👤 Thông Tin Sinh Viên | ព័ត៌មាននិស្សិត
+
+| 🇻🇳 | 🇰🇭 |
+|---|---|
+| 👤 **Họ tên:** Lâm Nhật Hào | 👤 **ឈ្មោះ:** Lâm Nhật Hào |
+| 🎓 **MSSV:** 110122071 | 🎓 **លេខនិស្សិត:** 110122071 |
+| 🏫 **Lớp:** DA22TTD | 🏫 **ថ្នាក់:** DA22TTD |
+| 📘 **Đề tài:** Văn Hóa Khmer Nam Bộ | 📘 **ប្រធានបទ:** វប្បធម៌ខ្មែរតំបន់ភាគខាងត្បូង |
+
+---
+
+## ✨ Tính Năng | មុខងារ
+
+### 🌐 Người dùng | អ្នកប្រើប្រាស់
+
+| 🇻🇳 Chức năng | 🇰🇭 មុខងារ |
+|---------------|-----------|
+| 🏠 Trang chủ | ទំព័រដើម |
+| 🏛️ Chùa Khmer | វត្តខ្មែរ |
+| 🎉 Lễ hội | ពិធីបុណ្យប្រពៃណី |
+| 📖 Truyện dân gian | រឿងព្រេងប្រជាប្រិយ |
+| 📚 Học tiếng Khmer | រៀនភាសាខ្មែរ |
+| 🗺️ Bản đồ di sản | ផែនទីបេតិកភណ្ឌ |
+| 🤖 AI Chatbot | ប្រព័ន្ធជំនួយ AI |
+| 👥 Nhóm học tập | ក្រុមសិក្សា |
+| 🏆 Gamification | ពិន្ទុ និងផ្លាកសញ្ញា |
+| 💬 Diễn đàn | វេទិកាពិភាក្សា |
+
+### 🔧 Quản trị viên | អ្នកគ្រប់គ្រង
+
+| 🇻🇳 | 🇰🇭 |
+|-----|-----|
+| Dashboard | ផ្ទាំងគ្រប់គ្រង |
+| Quản lý nội dung | គ្រប់គ្រងមាតិកា |
+| Quản lý người dùng | គ្រប់គ្រងអ្នកប្រើប្រាស់ |
+| Quản lý bài học | គ្រប់គ្រងមេរៀន |
+| Quản lý Quiz | គ្រប់គ្រងសំណួរ |
+| Quản lý bình luận | គ្រប់គ្រងមតិយោបល់ |
+
+---
+
+## 🛠️ Công Nghệ | បច្ចេកវិទ្យា
+
+```
+📦 Tech Stack
+├── Frontend: HTML, CSS, JavaScript, Bootstrap 5
+├── Backend: PHP 8.0+, MySQL 5.7+
+├── Chatbot: Node.js + Cerebras AI
+└── Map: Leaflet.js
+```
+
+---
+
+## 📁 Cấu Trúc Dự Án | រចនាសម្ព័ន្ធគម្រោង
 
 ```
 FrontendUser/
-├── index.php                    # Trang chủ
-├── login.php                    # Đăng nhập
-├── register.php                 # Đăng ký
-├── logout.php                   # Đăng xuất
-├── forgot-password.php          # Quên mật khẩu
-├── profile.php                  # Trang cá nhân
-├── settings.php                 # Cài đặt
-├── van-hoa.php                  # Danh sách văn hóa
-├── van-hoa-chi-tiet.php         # Chi tiết văn hóa
-├── chua-khmer.php               # Danh sách chùa
-├── chua-khmer-chi-tiet.php      # Chi tiết chùa
-├── le-hoi.php                   # Danh sách lễ hội
-├── le-hoi-chi-tiet.php          # Chi tiết lễ hội
-├── hoc-tieng-khmer.php          # Học tiếng Khmer
-├── bai-hoc-chi-tiet.php         # Chi tiết bài học
-├── truyen-dan-gian.php          # Truyện dân gian
-├── truyen-chi-tiet.php          # Đọc truyện
-├── ban-do.php                   # Bản đồ di sản
-├── search.php                   # Tìm kiếm
-├── leaderboard.php              # Bảng xếp hạng
+├── index.php                    # Trang chủ | ទំព័រដើម
+├── login.php                    # Đăng nhập | ចូលគណនី
+├── register.php                 # Đăng ký | ចុះឈ្មោះ
+├── van-hoa.php                  # Văn hóa | វប្បធម៌
+├── chua-khmer.php               # Chùa Khmer | វត្តខ្មែរ
+├── le-hoi.php                   # Lễ hội | ពិធីបុណ្យ
+├── truyen-dan-gian.php          # Truyện dân gian | រឿងព្រេង
+├── hoc-tieng-khmer.php          # Học tiếng Khmer | រៀនភាសាខ្មែរ
+├── ban-do.php                   # Bản đồ | ផែនទី
 ├── api/                         # API endpoints
 ├── assets/                      # CSS, JS, Images
-├── config/                      # Cấu hình
-├── includes/                    # Header, Footer, Functions
+├── config/                      # Cấu hình | ការកំណត់
+├── includes/                    # Components
 └── models/                      # Models
 ```
 
-## 🚀 Tính năng
+---
 
-### Phase 1: Tính năng cốt lõi ✅
-- [x] Trang chủ với hero section, thống kê, features
-- [x] Hệ thống Auth (đăng nhập, đăng ký, quên mật khẩu)
-- [x] Profile & Dashboard người dùng
-- [x] Trang Văn hóa Khmer (danh sách + chi tiết)
-- [x] Trang Chùa Khmer (danh sách + chi tiết + bản đồ)
-- [x] Trang Lễ hội (timeline + calendar view)
-- [x] Học tiếng Khmer (bài học + từ vựng)
-- [x] Truyện dân gian
-- [x] Gamification (điểm, huy hiệu, bảng xếp hạng)
-- [x] Tìm kiếm đa nội dung
+## 🚀 Cài Đặt | ការដំឡើង
 
-### Phase 2: Tính năng nâng cao ✅
-- [x] Bản đồ di sản (Leaflet.js + OpenStreetMap)
-- [x] Đa ngôn ngữ (Việt ↔ Khmer)
-- [x] Hệ thống bình luận
-- [x] Responsive design
+### 🇻🇳 Hướng dẫn
 
-### Phase 3: Tính năng mở rộng ✅
-- [x] AI Chatbot (placeholder - cần tích hợp API)
+1. Clone dự án
+2. Import database `van_hoa_khmer`
+3. Cấu hình file database
+4. Chạy server PHP & Node.js
 
-## 🛠️ Cài đặt
+### 🇰🇭 សេចក្ដីណែនាំ
 
-1. Copy thư mục `FrontendUser` vào web server (XAMPP, WAMP, etc.)
-2. Cấu hình database trong `config/database.php`
-3. Import database schema
-4. Truy cập `http://localhost/FrontendUser`
+1. Clone គម្រោង
+2. Import មូលដ្ឋានទិន្នន័យ
+3. កំណត់ Database
+4. ដំណើរការ PHP និង Node.js
 
-## 🎨 Design System
+---
 
-### Colors
-- Primary: `#667eea`
-- Secondary: `#764ba2`
-- Success: `#10b981`
-- Warning: `#f59e0b`
-- Danger: `#ef4444`
+## 🔑 Tài Khoản Mặc Định | គណនីលំនាំដើម
 
-### Typography
-- Font chính: Inter, Plus Jakarta Sans
-- Font Khmer: Battambang, Kantumruy Pro
+| Vai trò | Username | Password |
+|---------|----------|----------|
+| 👑 Admin | `LamNhatHao` | `123456` |
+| 👤 User | `TenNguoiDung` | `Mật khẩu` |
 
-## 📱 Responsive
+---
 
-- Mobile: < 640px
-- Tablet: 640px - 1024px
-- Desktop: > 1024px
+## 📸 Demo
 
-## 🔐 Bảo mật
+![Homepage](assets/images/khmer-temple-hero.jpg)
 
-- Password hashing (bcrypt)
-- CSRF protection
-- XSS prevention
-- SQL injection prevention (PDO)
+---
 
-## 📄 License
+## 📞 Liên Hệ | ទំនាក់ទំនង
 
-© 2024 Văn hóa Khmer Nam Bộ
+| | |
+|---|---|
+| 👤 | **Lâm Nhật Hào** |
+| 📧 | nhathao21112004@gmail.com |
+| 🎓 | MSSV: 110122071 |
+| 🏫 | Trường Đại học Trà Vinh |
+
+---
+
+## 📄 License | អាជ្ញាបណ្ណ
+
+🇻🇳 Dự án phục vụ mục đích học tập
+
+🇰🇭 គម្រោងនេះប្រើសម្រាប់ការសិក្សា
+
+© 2025 Lâm Nhật Hào – Đồ án Chuyên ngành
+
+---
+
+<div align="center">
+
+**⭐ Nếu thấy hữu ích – បើមានប្រយោជន៍ សូមផ្តល់ Star ⭐**
+
+Made with ❤️ for Khmer Culture Preservation
+
+</div>
